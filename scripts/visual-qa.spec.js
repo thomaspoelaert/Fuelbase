@@ -19,97 +19,79 @@ const settingsMock = {
   accentColor: 'mint',
 };
 
+function addDays(date, amount) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + amount);
+  return d.toISOString().slice(0, 10);
+}
+
 function planFor(date) {
+  const tomorrow = addDays(date, 1);
+  const dayAfter = addDays(date, 2);
   return {
     date,
-    calories: { base: 2400, training: 1050, target: 3450 },
+    calories: { base: 2400, goalAdjustment: 0, foundation: 2400, training: 1050, target: 3450 },
+    goal: { intent: 'maintain', label: 'Maintain', adjustmentKcal: 0, description: 'Match everyday needs plus the full cost of training.', trainingFuelProtected: true },
     macros: { carbohydrates: 480, proteins: 145, fat: 70 },
+    carbPeriodization: { gramsPerKg: 6, level: 'high' },
     workouts: [
       {
-        source: 'intervals',
-        sourceId: 'qa-ride',
-        eventId: 42,
-        planned: true,
-        completed: false,
-        date,
-        startTime: `${date}T18:00:00`,
-        sport: 'Ride',
-        name: 'Z2 Endurance Ride',
-        durationMin: 120,
-        energyKcal: 1050,
-        energySource: 'bike_kj',
-        fueling: {
-          preCarbs: 60,
-          duringRate: 60,
-          duringCarbs: 120,
-          duringRateSource: 'default',
-          postCarbs: 70,
-          postProtein: 30,
-          recoveryUrgency: 'priority',
-        },
+        source: 'intervals', sourceId: 'qa-ride', eventId: 42, planned: true, completed: false,
+        date, startTime: `${date}T18:00:00`, sport: 'Ride', name: 'Z2 Endurance Ride',
+        durationMin: 120, energyKcal: 1050, energySource: 'bike_kj',
+        fueling: { preCarbs: 60, duringRate: 60, duringCarbs: 120, duringRateSource: 'default', postCarbs: 70, postProtein: 30, recoveryUrgency: 'priority' },
       },
     ],
     mealTargets: [
-      { key: 'meal_0', label: 'Breakfast', centerKcal: 600, minKcal: 525, maxKcal: 675, workoutOverlayKcal: 0, timingAdjusted: false, suggestedHour: null },
-      { key: 'meal_1', label: 'Lunch', centerKcal: 720, minKcal: 635, maxKcal: 805, workoutOverlayKcal: 0, timingAdjusted: false, suggestedHour: null },
-      { key: 'meal_2', label: 'Dinner', centerKcal: 1220, minKcal: 1075, maxKcal: 1365, workoutOverlayKcal: 500, timingAdjusted: true, suggestedHour: 20.5 },
-      { key: 'meal_3', label: 'Snacks', centerKcal: 910, minKcal: 800, maxKcal: 1020, workoutOverlayKcal: 550, timingAdjusted: false, suggestedHour: null },
+      { key:'meal_0', label:'Breakfast', centerKcal:600, minKcal:525, maxKcal:675, workoutOverlayKcal:0, timingAdjusted:false, suggestedHour:null, guidance:{ carbsG:80, proteinG:35, priority:'normal', note:'Normal meal.' } },
+      { key:'meal_1', label:'Lunch', centerKcal:720, minKcal:635, maxKcal:805, workoutOverlayKcal:0, timingAdjusted:false, suggestedHour:null, guidance:{ carbsG:95, proteinG:40, priority:'normal', note:'Normal meal.' } },
+      { key:'meal_2', label:'Dinner', centerKcal:1220, minKcal:1075, maxKcal:1365, workoutOverlayKcal:500, timingAdjusted:true, suggestedHour:20.5, guidance:{ carbsG:125, proteinG:40, priority:'recovery', note:'Recovery meal.' } },
+      { key:'meal_3', label:'Snacks', centerKcal:910, minKcal:800, maxKcal:1020, workoutOverlayKcal:550, timingAdjusted:false, suggestedHour:null, guidance:{ carbsG:60, proteinG:30, priority:'training-support', note:'Training-support meal.' } },
     ],
-    standaloneFueling: [
-      { workoutId: 'qa-ride', type: 'during', kcal: 480, carbs: 120, label: 'During workout' },
-    ],
+    standaloneFueling: [{ workoutId:'qa-ride', type:'during', kcal:480, carbs:120, label:'During workout' }],
     eveningPrep: null,
     nextImportantWorkout: null,
-    config: { baseCalories: 2400, bodyWeightKg: 80, proteinGPerKg: 1.8, fatGPerKg: 0.9 },
+    forward48h: [
+      { date:tomorrow, targetKcal:3900, baseKcal:2400, goalAdjustmentKcal:0, trainingKcal:1500, carbsG:590, carbLevel:'high', goalIntent:'maintain', eveningPrep:null, workouts:[{ name:'Long Endurance Ride', sport:'Ride', startTime:`${tomorrow}T08:00:00`, durationMin:240, energyKcal:1500, preCarbs:100, duringRate:90, postCarbs:70 }] },
+      { date:dayAfter, targetKcal:3000, baseKcal:2400, goalAdjustmentKcal:0, trainingKcal:600, carbsG:365, carbLevel:'moderate', goalIntent:'maintain', eveningPrep:null, workouts:[{ name:'Easy Run', sport:'Run', startTime:`${dayAfter}T07:00:00`, durationMin:60, energyKcal:600, preCarbs:60, duringRate:30, postCarbs:55 }] },
+    ],
+    config: { baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' },
   };
 }
 
 async function installMocks(page) {
   await page.route('**/api/settings', async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(settingsMock) });
-    } else {
-      await route.continue();
-    }
+    if (route.request().method() === 'GET') await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(settingsMock) });
+    else await route.continue();
   });
 
   await page.route('**/api/v1/intervals/plan**', async route => {
     const url = new URL(route.request().url());
     const date = url.searchParams.get('date') || '2026-09-01';
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(planFor(date)) });
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(planFor(date)) });
   });
 
   await page.route('**/api/v1/intervals/status', async route => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ connected: true, config: { baseCalories: 2400, bodyWeightKg: 80, proteinGPerKg: 1.8, fatGPerKg: 0.9 } }),
-    });
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, config:{ baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' } }) });
   });
 
   await page.route('**/api/v1/intervals/config', async route => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ connected: true, baseCalories: 2400, bodyWeightKg: 80, proteinGPerKg: 1.8, fatGPerKg: 0.9 }),
-      });
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' }) });
     } else {
-      await route.continue();
+      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' }) });
     }
   });
 }
 
 async function settle(page) {
-  await page.waitForFunction(() => document.querySelector('#app')?.children.length > 0, null, { timeout: 15000 });
-  await page.evaluate(async () => {
-    if (document.fonts?.ready) await document.fonts.ready;
-  });
+  await page.waitForFunction(() => document.querySelector('#app')?.children.length > 0, null, { timeout:15000 });
+  await page.evaluate(async () => { if (document.fonts?.ready) await document.fonts.ready; });
   await page.waitForTimeout(300);
 }
 
 async function navigate(page, url) {
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await page.goto(url, { waitUntil:'domcontentloaded', timeout:15000 });
   await settle(page);
 }
 
@@ -119,22 +101,19 @@ async function login(page) {
   await page.locator('input[autocomplete="username"]').fill(USERNAME);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.locator('button.btn-primary').click();
-  await page.waitForURL(/#\/$/, { timeout: 15000 });
+  await page.waitForURL(/#\/$/, { timeout:15000 });
   await expect(page.locator('html')).toHaveClass(/fuelbase-endurance-active/);
   await settle(page);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
-  const overflow = await page.evaluate(() => ({
-    innerWidth: window.innerWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
+  const overflow = await page.evaluate(() => ({ innerWidth:window.innerWidth, scrollWidth:document.documentElement.scrollWidth }));
   expect(overflow.scrollWidth, `${label}: horizontal overflow`).toBeLessThanOrEqual(overflow.innerWidth + 2);
 }
 
 async function screenshot(page, name, { fullPage = true } = {}) {
   await settle(page);
-  await page.screenshot({ path: `visual-qa/${name}.png`, fullPage, animations: 'disabled' });
+  await page.screenshot({ path:`visual-qa/${name}.png`, fullPage, animations:'disabled' });
 }
 
 async function assertEnduranceSettings(page, label) {
@@ -145,13 +124,25 @@ async function assertEnduranceSettings(page, label) {
   await assertNoHorizontalOverflow(page, label);
 }
 
+async function assertNewFuelBaseDiary(page, mobile = false) {
+  await expect(page.locator('.meal-group[data-fuelbase-target-label]')).toHaveCount(4);
+  await expect(page.locator('#meal-2')).toHaveAttribute('data-fuelbase-workout-overlay', 'true');
+  await expect(page.locator('#meal-2')).toHaveAttribute('data-fuelbase-guidance-label', /carbs.*protein/);
+  if (mobile) {
+    await expect(page.locator('.emb')).toBeVisible();
+  } else {
+    await expect(page.locator('.goal-intent')).toBeVisible();
+    await expect(page.locator('.outlook')).toBeVisible();
+    await expect(page.locator('.energy-band')).toContainText('Foundation');
+  }
+}
+
 test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   test.setTimeout(120000);
-  await fs.mkdir('visual-qa', { recursive: true });
+  await fs.mkdir('visual-qa', { recursive:true });
   const notes = [];
 
-  // Desktop first.
-  const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' });
+  const desktop = await browser.newContext({ viewport:{ width:1440, height:1000 }, colorScheme:'light' });
   const d = await desktop.newPage();
   const desktopErrors = [];
   d.on('pageerror', e => desktopErrors.push(String(e)));
@@ -159,15 +150,14 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
 
   await navigate(d, BASE_URL);
   await expect(d.locator('.login-title')).toHaveText('FuelBase');
-  await screenshot(d, '01-login-desktop', { fullPage: false });
+  await screenshot(d, '01-login-desktop', { fullPage:false });
 
   await d.locator('input[autocomplete="username"]').fill(USERNAME);
   await d.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await d.locator('button.btn-primary').click();
-  await d.waitForURL(/#\/$/, { timeout: 15000 });
+  await d.waitForURL(/#\/$/, { timeout:15000 });
   await expect(d.locator('html')).toHaveClass(/fuelbase-endurance-active/);
-  await expect(d.locator('.meal-group[data-fuelbase-target-label]')).toHaveCount(4);
-  await expect(d.locator('#meal-2')).toHaveAttribute('data-fuelbase-workout-overlay', 'true');
+  await assertNewFuelBaseDiary(d, false);
   await assertNoHorizontalOverflow(d, 'desktop diary');
   await screenshot(d, '02-diary-desktop');
 
@@ -176,6 +166,7 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await screenshot(d, '03-goals-desktop');
 
   await navigate(d, `${BASE_URL}/#/foods`);
+  await expect(d.getByText('Jumbo Skyr IJslandse Stijl Vanille', { exact:false }).first()).toBeVisible();
   await assertNoHorizontalOverflow(d, 'desktop foods');
   await screenshot(d, '04-foods-desktop');
 
@@ -191,36 +182,37 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   if (desktopErrors.length) notes.push(...desktopErrors.map(e => `desktop error: ${e}`));
   await desktop.close();
 
-  // iPhone-sized PWA viewport. Use CSS viewport dimensions close to current
-  // non-Max iPhones while keeping DPR=1 so screenshot artifacts remain compact.
-  const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', isMobile: true, hasTouch: true });
+  const mobile = await browser.newContext({ viewport:{ width:390, height:844 }, colorScheme:'light', isMobile:true, hasTouch:true });
   const m = await mobile.newPage();
   const mobileErrors = [];
   m.on('pageerror', e => mobileErrors.push(String(e)));
   await installMocks(m);
   await login(m);
 
-  await expect(m.locator('.emb')).toBeVisible();
+  await assertNewFuelBaseDiary(m, true);
   await expect(m.locator('.diary-bottom-bar')).toBeHidden();
   await assertNoHorizontalOverflow(m, 'mobile diary collapsed');
-  await screenshot(m, '07-diary-iphone-collapsed', { fullPage: false });
+  await screenshot(m, '07-diary-iphone-collapsed', { fullPage:false });
 
   await m.locator('.emb-summary').click();
   await expect(m.locator('.emb')).toHaveClass(/expanded/);
+  await expect(m.locator('.emb-forward')).toBeVisible();
+  await expect(m.locator('.emb-detail')).toContainText('Maintain');
   await assertNoHorizontalOverflow(m, 'mobile diary expanded');
-  await screenshot(m, '08-diary-iphone-expanded', { fullPage: false });
+  await screenshot(m, '08-diary-iphone-expanded', { fullPage:false });
 
   await navigate(m, `${BASE_URL}/#/goals`);
   await assertNoHorizontalOverflow(m, 'mobile goals');
   await screenshot(m, '09-goals-iphone');
 
   await navigate(m, `${BASE_URL}/#/foods`);
+  await expect(m.getByText('Jumbo Skyr IJslandse Stijl Vanille', { exact:false }).first()).toBeVisible();
   await assertNoHorizontalOverflow(m, 'mobile foods');
-  await screenshot(m, '10-foods-iphone', { fullPage: false });
+  await screenshot(m, '10-foods-iphone', { fullPage:false });
 
   await navigate(m, `${BASE_URL}/#/settings`);
   await assertNoHorizontalOverflow(m, 'mobile settings');
-  await screenshot(m, '11-settings-iphone', { fullPage: false });
+  await screenshot(m, '11-settings-iphone', { fullPage:false });
 
   await navigate(m, `${BASE_URL}/#/settings/goals`);
   await assertEnduranceSettings(m, 'mobile endurance settings');
