@@ -1,29 +1,16 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { currentDate, diaryTotals } from '../../stores/diary.js';
-  import { IntervalsClient } from '../../lib/intervals-client.js';
+  import {
+    endurancePlan,
+    endurancePlanLoading,
+    endurancePlanError,
+    endurancePlanDate,
+    loadEndurancePlan,
+  } from '../../stores/endurance-plan.js';
 
-  let plan = null;
-  let loading = false;
-  let error = '';
   let expanded = false;
-  let _loadedDate = null;
   let _mq = null;
-
-  async function load(date) {
-    if (!date || loading || _loadedDate === date) return;
-    loading = true;
-    error = '';
-    try {
-      plan = await IntervalsClient.plan(date);
-    } catch (e) {
-      plan = null;
-      error = e?.data?.needsConfig ? 'Finish Endurance setup in Goals.' : (e?.message || 'Fueling plan unavailable');
-    } finally {
-      _loadedDate = date;
-      loading = false;
-    }
-  }
 
   function syncLayout() {
     if (typeof document === 'undefined') return;
@@ -41,7 +28,8 @@
     if (typeof document !== 'undefined') document.documentElement.style.setProperty('--nav-h', '78px');
   });
 
-  $: if ($currentDate && _loadedDate !== $currentDate) load($currentDate);
+  $: if ($currentDate && $endurancePlanDate !== $currentDate) loadEndurancePlan($currentDate);
+  $: plan = $endurancePlan;
   $: consumed = Math.round($diaryTotals?.calories || 0);
   $: target = Math.round(plan?.calories?.target || 0);
   $: remaining = target ? target - consumed : 0;
@@ -60,10 +48,10 @@
 <aside class="emb" class:expanded aria-label="Endurance nutrition plan">
   <button class="emb-summary" type="button" on:click={() => expanded = !expanded} aria-expanded={expanded}>
     <div class="emb-mark"><span class="material-symbols-rounded">bolt</span></div>
-    {#if loading}
+    {#if $endurancePlanLoading}
       <div class="emb-main"><strong>Loading training plan…</strong><span>Intervals.icu</span></div>
-    {:else if error}
-      <div class="emb-main error"><strong>Endurance plan needs attention</strong><span>{error}</span></div>
+    {:else if $endurancePlanError}
+      <div class="emb-main error"><strong>Endurance plan needs attention</strong><span>{$endurancePlanError}</span></div>
     {:else if plan}
       <div class="emb-main">
         <div class="emb-title-row"><strong>{remaining >= 0 ? `${remaining.toLocaleString()} kcal left` : `${Math.abs(remaining).toLocaleString()} kcal over`}</strong><span>{consumed.toLocaleString()} / {target.toLocaleString()}</span></div>
@@ -90,7 +78,7 @@
           </div>
           <div class="emb-fuel">
             <div><span>Before</span><strong>{Math.round(nextWorkout.fueling?.preCarbs || 0)}g</strong></div>
-            <div class="accent"><span>During</span><strong>{Math.round(nextWorkout.fueling?.duringRate || 0)}g/h</strong></div>
+            <div class="accent"><span>During{nextWorkout.fueling?.duringRateSource === 'workout_target' ? ' · Intervals' : ''}</span><strong>{Math.round(nextWorkout.fueling?.duringRate || 0)}g/h</strong></div>
             <div><span>After</span><strong>{Math.round(nextWorkout.fueling?.postCarbs || 0)}g + {Math.round(nextWorkout.fueling?.postProtein || 0)}g P</strong></div>
           </div>
         </div>
