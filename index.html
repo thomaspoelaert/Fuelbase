@@ -6,8 +6,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0A0B0F" id="theme-color-meta" />
-  <title>NutriTrace</title>
+  <meta name="theme-color" content="#0C0F13" id="theme-color-meta" />
+  <title>FuelBase</title>
   <!-- VitePWA injects its own <link rel="manifest"> with a relative href that
        respects the Vite base config — keeping this hand-written one as a no-op
        fallback would resolve to the wrong absolute path under BASE_URL. -->
@@ -50,7 +50,7 @@
       var dark = appearance === 'dark' || (appearance === 'system' && prefersDark);
       document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
       var meta = document.getElementById('theme-color-meta');
-      if (meta) meta.content = dark ? '#0A0B0F' : '#F5F7FA';
+      if (meta) meta.content = dark ? '#0C0F13' : '#F4F5F7';
     })();
   </script>
 
