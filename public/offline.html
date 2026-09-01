@@ -3,73 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NutriTrace — Offline</title>
+  <title>FuelBase — Offline</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       min-height: 100dvh;
-      display: flex; align-items: center; justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0A0B0F;
-      color: #E8EAF0;
+      display: grid;
+      place-items: center;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0C0F13;
+      color: #F5F7F9;
       padding: 24px;
-      text-align: center;
     }
     .card {
-      max-width: 340px; width: 100%;
-      background: #111318;
-      border: 1px solid #1E2330;
-      border-radius: 20px;
-      padding: 40px 32px;
+      width: min(100%, 390px);
+      padding: 28px;
+      background: #14181D;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 28px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.28);
     }
-    .icon {
-      font-size: 52px;
-      line-height: 1;
-      margin-bottom: 20px;
+    .mark {
+      width: 46px; height: 46px;
+      display: grid; place-items: center;
+      margin-bottom: 24px;
+      border-radius: 15px;
+      background: rgba(79,255,176,.11);
+      color: #4FFFB0;
+      font-size: 22px;
+    }
+    .eyebrow {
+      display: block;
+      margin-bottom: 7px;
+      color: #4FFFB0;
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: .09em;
+      text-transform: uppercase;
     }
     h1 {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-size: 25px;
+      line-height: 1.15;
+      letter-spacing: -.035em;
       margin-bottom: 10px;
     }
     p {
-      font-size: 15px;
-      color: #6B7280;
-      line-height: 1.6;
-      margin-bottom: 28px;
+      color: rgba(245,247,249,.62);
+      font-size: 14px;
+      line-height: 1.65;
+      margin-bottom: 22px;
     }
     .btn {
-      display: inline-block;
-      padding: 12px 28px;
-      background: #00C47A;
-      color: #fff;
-      font-size: 15px;
+      width: 100%;
+      min-height: 46px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 14px;
+      background: #4FFFB0;
+      color: #0C0F13;
+      font-size: 14px;
       font-weight: 700;
-      border-radius: 10px;
-      border: none;
       cursor: pointer;
-      text-decoration: none;
-      letter-spacing: 0.01em;
     }
-    .btn:hover { background: #00A85E; }
-    .tagline {
-      margin-top: 24px;
+    .btn:hover { filter: brightness(.95); }
+    .footer {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,.07);
+      color: rgba(245,247,249,.36);
       font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #00C47A;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">📡</div>
-    <h1>Can't reach your server</h1>
-    <p>NutriTrace couldn't connect. Make sure your server is running and try again.</p>
+  <main class="card">
+    <div class="mark">↗</div>
+    <span class="eyebrow">FuelBase offline</span>
+    <h1>Your server is out of reach.</h1>
+    <p>Your diary and fueling plan need a connection to the FuelBase server. Check the server or network connection and try again.</p>
     <button class="btn" onclick="window.location.reload()">Try again</button>
-    <div class="tagline">NutriTrace · Trace Every Bite</div>
-  </div>
+    <div class="footer">Endurance nutrition, built around training.</div>
+  </main>
 </body>
 </html>
