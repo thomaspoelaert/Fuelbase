@@ -1,0 +1,65 @@
+name: Live Intervals Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke_date:
+        description: 'Date to validate (YYYY-MM-DD); blank = today in Europe/Brussels'
+        required: false
+        type: string
+      base_calories:
+        description: 'FuelBase base kcal/day used by the nutrition engine'
+        required: true
+        default: '2400'
+        type: string
+      body_weight_kg:
+        description: 'Body weight in kg used by the nutrition engine'
+        required: true
+        default: '75'
+        type: string
+      require_workouts:
+        description: 'Fail if the selected date has no planned/completed workouts'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  live-intervals-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run live Intervals smoke test
+        env:
+          INTERVALS_API_KEY: ${{ secrets.INTERVALS_API_KEY }}
+          FUELBASE_BASE_CALORIES: ${{ inputs.base_calories }}
+          FUELBASE_BODY_WEIGHT_KG: ${{ inputs.body_weight_kg }}
+          SMOKE_DATE_INPUT: ${{ inputs.smoke_date }}
+          REQUIRE_WORKOUTS: ${{ inputs.require_workouts }}
+          SMOKE_TIME_ZONE: Europe/Brussels
+        run: |
+          if [ -z "$INTERVALS_API_KEY" ]; then
+            echo "::error::Repository secret INTERVALS_API_KEY is not configured."
+            exit 1
+          fi
+          if [ -n "$SMOKE_DATE_INPUT" ]; then
+            export SMOKE_DATE="$SMOKE_DATE_INPUT"
+          fi
+          if [ "$REQUIRE_WORKOUTS" = "true" ]; then
+            export SMOKE_REQUIRE_WORKOUTS=1
+          fi
+          npm run smoke:intervals
