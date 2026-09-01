@@ -1,4 +1,4 @@
-import { test, expect, devices } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
 
 const BASE_URL = 'http://127.0.0.1:3001';
@@ -100,14 +100,28 @@ async function installMocks(page) {
   });
 }
 
+async function settle(page) {
+  await page.waitForFunction(() => document.querySelector('#app')?.children.length > 0, null, { timeout: 15000 });
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) await document.fonts.ready;
+  });
+  await page.waitForTimeout(300);
+}
+
+async function navigate(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+  await settle(page);
+}
+
 async function login(page) {
-  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await navigate(page, BASE_URL);
   await expect(page.locator('.login-title')).toHaveText('FuelBase');
   await page.locator('input[autocomplete="username"]').fill(USERNAME);
   await page.locator('input[autocomplete="current-password"]').fill(PASSWORD);
   await page.locator('button.btn-primary').click();
   await page.waitForURL(/#\/$/, { timeout: 15000 });
   await expect(page.locator('html')).toHaveClass(/fuelbase-endurance-active/);
+  await settle(page);
 }
 
 async function assertNoHorizontalOverflow(page, label) {
@@ -119,10 +133,12 @@ async function assertNoHorizontalOverflow(page, label) {
 }
 
 async function screenshot(page, name, { fullPage = true } = {}) {
+  await settle(page);
   await page.screenshot({ path: `visual-qa/${name}.png`, fullPage, animations: 'disabled' });
 }
 
 test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
+  test.setTimeout(120000);
   await fs.mkdir('visual-qa', { recursive: true });
   const notes = [];
 
@@ -133,7 +149,7 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   d.on('pageerror', e => desktopErrors.push(String(e)));
   await installMocks(d);
 
-  await d.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await navigate(d, BASE_URL);
   await expect(d.locator('.login-title')).toHaveText('FuelBase');
   await screenshot(d, '01-login-desktop', { fullPage: false });
 
@@ -147,15 +163,15 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await assertNoHorizontalOverflow(d, 'desktop diary');
   await screenshot(d, '02-diary-desktop');
 
-  await d.goto(`${BASE_URL}/#/goals`, { waitUntil: 'networkidle' });
+  await navigate(d, `${BASE_URL}/#/goals`);
   await assertNoHorizontalOverflow(d, 'desktop goals');
   await screenshot(d, '03-goals-desktop');
 
-  await d.goto(`${BASE_URL}/#/foods`, { waitUntil: 'networkidle' });
+  await navigate(d, `${BASE_URL}/#/foods`);
   await assertNoHorizontalOverflow(d, 'desktop foods');
   await screenshot(d, '04-foods-desktop');
 
-  await d.goto(`${BASE_URL}/#/settings`, { waitUntil: 'networkidle' });
+  await navigate(d, `${BASE_URL}/#/settings`);
   await assertNoHorizontalOverflow(d, 'desktop settings');
   await screenshot(d, '05-settings-desktop');
 
@@ -182,15 +198,15 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await assertNoHorizontalOverflow(m, 'mobile diary expanded');
   await screenshot(m, '07-diary-iphone-expanded', { fullPage: false });
 
-  await m.goto(`${BASE_URL}/#/goals`, { waitUntil: 'networkidle' });
+  await navigate(m, `${BASE_URL}/#/goals`);
   await assertNoHorizontalOverflow(m, 'mobile goals');
   await screenshot(m, '08-goals-iphone');
 
-  await m.goto(`${BASE_URL}/#/foods`, { waitUntil: 'networkidle' });
+  await navigate(m, `${BASE_URL}/#/foods`);
   await assertNoHorizontalOverflow(m, 'mobile foods');
   await screenshot(m, '09-foods-iphone', { fullPage: false });
 
-  await m.goto(`${BASE_URL}/#/settings`, { waitUntil: 'networkidle' });
+  await navigate(m, `${BASE_URL}/#/settings`);
   await assertNoHorizontalOverflow(m, 'mobile settings');
   await screenshot(m, '10-settings-iphone', { fullPage: false });
 
