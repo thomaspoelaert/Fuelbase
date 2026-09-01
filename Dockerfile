@@ -42,10 +42,10 @@ COPY src/lib/endurance-nutrition.js /src/lib/endurance-nutrition.js
 COPY --from=build /app/package.json ./package.json
 # Bake the app version into the image so the in-app updates checker can
 # report the running server version. CI can pass `--build-arg
-# APP_VERSION=$(node -p 'require("./package.json").version')`; falls
+# APP_VERSION=$(node -p 'require("./package.json').version')`; falls
 # back to reading /app/package.json at runtime.
 ARG APP_VERSION=""
 ENV TRACEAPPS_APP_VERSION=${APP_VERSION}
 EXPOSE 3001
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "index.js"]
+CMD ["node", "--import", "./lib/fuelbase-bootstrap-entry.js", "index.js"]
