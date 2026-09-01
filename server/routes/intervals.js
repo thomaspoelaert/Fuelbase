@@ -9,7 +9,12 @@ import {
   testConnection,
   reconcilePlannedAndCompleted,
 } from '../lib/intervals.js';
-import { calculateEnduranceDay, classifyWorkout } from '../../src/lib/endurance-nutrition.js';
+import { classifyWorkout } from '../../src/lib/endurance-nutrition.js';
+import {
+  calculateFuelBaseDay,
+  summarizeFuelBaseDay,
+  normalizeGoalIntent,
+} from '../../src/lib/fuelbase-planning.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -19,6 +24,7 @@ const DEFAULT_CONFIG = Object.freeze({
   bodyWeightKg: null,
   proteinGPerKg: 1.8,
   fatGPerKg: 0.9,
+  goalIntent: 'maintain',
 });
 
 function uid(req) {
@@ -48,7 +54,9 @@ function readConfig(req) {
   const row = db.prepare('SELECT value FROM app_config WHERE key = ?').get(configKey(req));
   if (!row?.value) return { ...DEFAULT_CONFIG };
   try {
-    return { ...DEFAULT_CONFIG, ...JSON.parse(row.value) };
+    const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(row.value) };
+    parsed.goalIntent = normalizeGoalIntent(parsed.goalIntent);
+    return parsed;
   } catch {
     return { ...DEFAULT_CONFIG };
   }
@@ -72,9 +80,6 @@ function readUserSetting(req, key, fallback = null) {
 function mealSlotsForUser(req) {
   const names = readUserSetting(req, 'mealNames', ['Breakfast', 'Lunch', 'Dinner', 'Snacks']);
   if (!Array.isArray(names) || !names.length) return undefined;
-  // Shares/hours deliberately remain engine defaults by slot index. The user
-  // can rename/reorder/add Diary meal slots and the returned FuelBase targets
-  // will still line up 1:1 with the rendered meal cards.
   return names.map((name, index) => ({ key: `meal_${index}`, label: String(name || `Meal ${index + 1}`) }));
 }
 
@@ -93,6 +98,12 @@ function validDate(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
 }
 
+function addDays(date, amount) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + amount);
+  return d.toISOString().slice(0, 10);
+}
+
 async function loadRange(apiKey, oldest, newest) {
   const [events, activities] = await Promise.all([
     listEvents(apiKey, oldest, newest),
@@ -106,18 +117,32 @@ function isImportantWorkout(workout) {
   return c.hard || c.long || c.durationMin >= 90;
 }
 
-router.get('/status', wrap((req, res) => {
-  res.json({
-    connected: !!readKey(req),
-    config: readConfig(req),
+function firstImportant(rows = []) {
+  return rows
+    .filter(isImportantWorkout)
+    .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')))[0] || null;
+}
+
+function makePlan({ date, workouts, nextImportantWorkout, saved, baseCalories, bodyWeightKg, meals }) {
+  return calculateFuelBaseDay({
+    date,
+    baseCalories,
+    bodyWeightKg,
+    goalIntent: saved.goalIntent,
+    proteinGPerKg: saved.proteinGPerKg,
+    fatGPerKg: saved.fatGPerKg,
+    meals,
+    workouts,
+    nextImportantWorkout,
   });
+}
+
+router.get('/status', wrap((req, res) => {
+  res.json({ connected: !!readKey(req), config: readConfig(req) });
 }));
 
 router.get('/config', wrap((req, res) => {
-  res.json({
-    connected: !!readKey(req),
-    ...readConfig(req),
-  });
+  res.json({ connected: !!readKey(req), ...readConfig(req) });
 }));
 
 router.put('/config', wrap((req, res) => {
@@ -136,6 +161,9 @@ router.put('/config', wrap((req, res) => {
     fatGPerKg: req.body?.fatGPerKg !== undefined
       ? validateNumber('fatGPerKg', req.body.fatGPerKg, 0.4, 2.0)
       : current.fatGPerKg,
+    goalIntent: req.body?.goalIntent !== undefined
+      ? normalizeGoalIntent(req.body.goalIntent)
+      : current.goalIntent,
   };
 
   writeConfig(req, next);
@@ -145,7 +173,6 @@ router.put('/config', wrap((req, res) => {
 router.put('/credentials', wrap(async (req, res) => {
   const apiKey = String(req.body?.apiKey || '').trim();
   if (!apiKey) return res.status(400).json({ error: 'Intervals.icu API key required' });
-
   const result = await testConnection(apiKey);
   writeKey(req, apiKey);
   res.json({ connected: true, ...result });
@@ -199,36 +226,59 @@ router.get('/plan', wrap(async (req, res) => {
     });
   }
 
-  const next = new Date(`${date}T12:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  const nextDate = next.toISOString().slice(0, 10);
+  const nextDate = addDays(date, 1);
+  const dayAfter = addDays(date, 2);
+  const all = await loadRange(apiKey, date, dayAfter);
+  const meals = mealSlotsForUser(req);
+  const byDate = d => all.filter(w => w.date === d);
 
-  const all = await loadRange(apiKey, date, nextDate);
-  const todayWorkouts = all.filter(w => w.date === date);
-  const tomorrow = all.filter(w => w.date === nextDate);
-  const nextImportant = tomorrow
-    .filter(isImportantWorkout)
-    .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')))[0] || null;
+  const todayWorkouts = byDate(date);
+  const tomorrowWorkouts = byDate(nextDate);
+  const dayAfterWorkouts = byDate(dayAfter);
 
-  const plan = calculateEnduranceDay({
+  const tomorrowImportant = firstImportant(tomorrowWorkouts);
+  const dayAfterImportant = firstImportant(dayAfterWorkouts);
+
+  const plan = makePlan({
     date,
+    workouts: todayWorkouts,
+    nextImportantWorkout: tomorrowImportant,
+    saved,
     baseCalories,
     bodyWeightKg,
-    proteinGPerKg: saved.proteinGPerKg,
-    fatGPerKg: saved.fatGPerKg,
-    meals: mealSlotsForUser(req),
-    workouts: todayWorkouts,
-    nextImportantWorkout: nextImportant,
+    meals,
+  });
+
+  const tomorrowPlan = makePlan({
+    date: nextDate,
+    workouts: tomorrowWorkouts,
+    nextImportantWorkout: dayAfterImportant,
+    saved,
+    baseCalories,
+    bodyWeightKg,
+    meals,
+  });
+
+  const dayAfterPlan = makePlan({
+    date: dayAfter,
+    workouts: dayAfterWorkouts,
+    nextImportantWorkout: null,
+    saved,
+    baseCalories,
+    bodyWeightKg,
+    meals,
   });
 
   res.json({
     ...plan,
-    nextImportantWorkout: nextImportant,
+    nextImportantWorkout: tomorrowImportant,
+    forward48h: [summarizeFuelBaseDay(tomorrowPlan), summarizeFuelBaseDay(dayAfterPlan)],
     config: {
       baseCalories,
       bodyWeightKg,
       proteinGPerKg: saved.proteinGPerKg,
       fatGPerKg: saved.fatGPerKg,
+      goalIntent: saved.goalIntent,
     },
   });
 }));
