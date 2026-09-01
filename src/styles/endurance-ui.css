@@ -100,6 +100,62 @@ html.fuelbase-goals-endurance .goals-right-rail {
 .fuelbase-goals-settings { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
 .fuelbase-goals-settings .material-symbols-rounded { font-size: 15px; }
 
+/* Persistent Lose / Maintain / Gain control inside Endurance Settings. It is
+   injected into the existing Daily foundation card so the upstream Settings
+   component can stay easy to merge while the selection still writes directly
+   to the server-side FuelBase config. */
+.fuelbase-settings-goal-intent {
+  margin: 16px 0 2px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface-1));
+}
+
+.fuelbase-intent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.fuelbase-intent-head > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fuelbase-intent-kicker { color: var(--text-3); font-size: 9px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.fuelbase-intent-head strong { font-size: 12px; }
+.fuelbase-intent-protected { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 9px; font-weight: 650; white-space: nowrap; }
+.fuelbase-intent-protected .material-symbols-rounded { font-size: 13px; }
+
+.fuelbase-intent-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.fuelbase-intent-option {
+  min-width: 0;
+  padding: 9px 7px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+}
+
+.fuelbase-intent-option:hover:not(:disabled) { border-color: var(--border-strong); }
+.fuelbase-intent-option:active:not(:disabled) { transform: scale(.985); }
+.fuelbase-intent-option strong { color: var(--text-1); font-size: 11px; }
+.fuelbase-intent-option span { color: var(--text-3); font-size: 9px; }
+.fuelbase-intent-option.active { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-dim); }
+.fuelbase-intent-option.active strong { color: var(--accent); }
+.fuelbase-intent-option:disabled { opacity: .6; cursor: wait; }
+.fuelbase-intent-summary { display: block; margin-top: 8px; color: var(--text-3); font-size: 9.5px; line-height: 1.4; }
+
 @media (min-width: 1280px) {
   html.fuelbase-goals-endurance:not(.force-mobile-layout) .goals-body {
     grid-template-columns: 260px minmax(0, 1fr) !important;
@@ -133,4 +189,10 @@ html.fuelbase-goals-endurance .goals-right-rail {
   .fuelbase-goals-settings { display: none; }
   .fuelbase-goals-title { font-size: 13px; }
   .fuelbase-goals-meta { font-size: 9px; }
+
+  .fuelbase-intent-head { align-items: flex-start; }
+  .fuelbase-intent-protected { white-space: normal; justify-content: flex-end; text-align: right; }
+  .fuelbase-intent-option { padding: 8px 6px; }
+  .fuelbase-intent-option strong { font-size: 10px; }
+  .fuelbase-intent-option span { font-size: 8px; }
 }
