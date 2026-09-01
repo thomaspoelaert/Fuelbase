@@ -69,7 +69,7 @@ export function normalizeEvent(row = {}) {
     joules: row.joules ?? null,
     energyKcal: null,
     pairedEventId: null,
-    carbsPerHour: row.carbs_per_hour ?? null,
+    carbsPerHour: row.carbs_per_hour ?? row.workout_doc?.carbs_per_hour ?? null,
     raw: row,
   };
 }
@@ -92,6 +92,7 @@ export function normalizeActivity(row = {}) {
     joules: row.icu_joules ?? row.joules ?? null,
     energyKcal: row.calories != null ? Number(row.calories) : null,
     pairedEventId: row.paired_event_id ?? null,
+    carbsPerHour: row.carbs_per_hour ?? null,
     raw: row,
   };
 }
@@ -145,6 +146,13 @@ export function reconcilePlannedAndCompleted(events = [], activities = []) {
     if (match) {
       usedEvents.add(match.sourceId);
       a.replacesPlannedEventId = match.eventId;
+      // The performed activity replaces the planned energy estimate, but the
+      // planned fueling prescription remains useful. Preserve it unless the
+      // completed activity itself already carries an explicit carb target.
+      if (a.carbsPerHour == null && match.carbsPerHour != null) {
+        a.carbsPerHour = match.carbsPerHour;
+        a.carbsPerHourSource = 'planned_event';
+      }
     }
   }
 
