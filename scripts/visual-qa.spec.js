@@ -60,6 +60,15 @@ function planFor(date) {
 }
 
 async function installMocks(page) {
+  let enduranceConfig = {
+    connected: true,
+    baseCalories: 2400,
+    bodyWeightKg: 80,
+    proteinGPerKg: 1.8,
+    fatGPerKg: 0.9,
+    goalIntent: 'maintain',
+  };
+
   await page.route('**/api/settings', async route => {
     if (route.request().method() === 'GET') await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(settingsMock) });
     else await route.continue();
@@ -72,15 +81,16 @@ async function installMocks(page) {
   });
 
   await page.route('**/api/v1/intervals/status', async route => {
-    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, config:{ baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' } }) });
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, config:enduranceConfig }) });
   });
 
   await page.route('**/api/v1/intervals/config', async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' }) });
-    } else {
-      await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify({ connected:true, baseCalories:2400, bodyWeightKg:80, proteinGPerKg:1.8, fatGPerKg:0.9, goalIntent:'maintain' }) });
+    if (route.request().method() !== 'GET') {
+      let patch = {};
+      try { patch = JSON.parse(route.request().postData() || '{}'); } catch {}
+      enduranceConfig = { ...enduranceConfig, ...patch, connected:true };
     }
+    await route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(enduranceConfig) });
   });
 }
 
@@ -121,7 +131,29 @@ async function assertEnduranceSettings(page, label) {
   await expect(page.locator('.endurance-card')).toHaveCount(2);
   await expect(page.locator('.connection-pill')).toContainText('Connected');
   await expect(page.locator('.endurance-formula')).toContainText('2,400 kcal');
+  await expect(page.locator('.fuelbase-settings-goal-intent')).toBeVisible();
+  await expect(page.locator('.fuelbase-intent-option')).toHaveCount(3);
+  await expect(page.locator('.fuelbase-intent-option.active')).toContainText(/Maintain|Lose|Gain/);
   await assertNoHorizontalOverflow(page, label);
+}
+
+async function assertGoalIntentPersistence(page) {
+  const selector = page.locator('.fuelbase-settings-goal-intent');
+  await expect(selector).toBeVisible();
+  await expect(selector.locator('.fuelbase-intent-option.active')).toContainText('Maintain');
+  await selector.locator('[data-intent="lose"]').click();
+  await expect(selector.locator('.fuelbase-intent-option.active')).toContainText('Lose');
+  await expect(selector.locator('.fuelbase-intent-summary')).toContainText('−250 kcal/day');
+
+  await navigate(page, `${BASE_URL}/#/settings`);
+  await navigate(page, `${BASE_URL}/#/settings/goals`);
+  const reloaded = page.locator('.fuelbase-settings-goal-intent');
+  await expect(reloaded.locator('.fuelbase-intent-option.active')).toContainText('Lose');
+
+  // Restore the neutral default after proving round-trip persistence so the
+  // screenshots remain easy to compare with the mocked Diary plan.
+  await reloaded.locator('[data-intent="maintain"]').click();
+  await expect(reloaded.locator('.fuelbase-intent-option.active')).toContainText('Maintain');
 }
 
 async function assertNewFuelBaseDiary(page, mobile = false) {
@@ -162,11 +194,15 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await screenshot(d, '02-diary-desktop');
 
   await navigate(d, `${BASE_URL}/#/goals`);
+  await expect(d.locator('.fuelbase-goals-notice')).toBeVisible();
+  await expect(d.locator('.fuelbase-goals-notice')).toContainText('3,450 kcal today');
+  await expect(d.locator('.fuelbase-goals-notice')).toContainText('Maintain');
   await assertNoHorizontalOverflow(d, 'desktop goals');
   await screenshot(d, '03-goals-desktop');
 
   await navigate(d, `${BASE_URL}/#/foods`);
   await expect(d.getByText('Jumbo Skyr IJslandse Stijl Vanille', { exact:false }).first()).toBeVisible();
+  await expect(d.getByText('Intra-workout koolhydraten', { exact:false }).first()).toBeVisible();
   await assertNoHorizontalOverflow(d, 'desktop foods');
   await screenshot(d, '04-foods-desktop');
 
@@ -176,6 +212,7 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
 
   await navigate(d, `${BASE_URL}/#/settings/goals`);
   await assertEnduranceSettings(d, 'desktop endurance settings');
+  await assertGoalIntentPersistence(d);
   await screenshot(d, '06-endurance-settings-desktop');
 
   notes.push(`desktop page errors: ${desktopErrors.length}`);
@@ -202,11 +239,14 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await screenshot(m, '08-diary-iphone-expanded', { fullPage:false });
 
   await navigate(m, `${BASE_URL}/#/goals`);
+  await expect(m.locator('.fuelbase-goals-notice')).toBeVisible();
+  await expect(m.locator('.fuelbase-goals-notice')).toContainText('3,450 kcal today');
   await assertNoHorizontalOverflow(m, 'mobile goals');
   await screenshot(m, '09-goals-iphone');
 
   await navigate(m, `${BASE_URL}/#/foods`);
   await expect(m.getByText('Jumbo Skyr IJslandse Stijl Vanille', { exact:false }).first()).toBeVisible();
+  await expect(m.getByText('Intra-workout koolhydraten', { exact:false }).first()).toBeVisible();
   await assertNoHorizontalOverflow(m, 'mobile foods');
   await screenshot(m, '10-foods-iphone', { fullPage:false });
 
