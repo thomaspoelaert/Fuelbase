@@ -9,13 +9,20 @@ function existingForUser(userId, name) {
   ).get(userId, name);
 }
 
+function nutritionBasis(food) {
+  if (Number(food.portion) !== 100) return null;
+  if (food.unit === 'g') return 'g';
+  if (food.unit === 'ml') return 'ml';
+  return null;
+}
+
 export function seedFuelBaseStarterFoods(userId) {
   if (!Number.isFinite(Number(userId))) return { inserted: 0, skipped: 0 };
   const insert = db.prepare(`
     INSERT INTO foods (
       user_id, name, brand, nutrition, portion, unit, notes, category,
-      visibility, alt_units, favorite, usage_count, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'private', ?, 0, 0, datetime('now'))
+      visibility, alt_units, nutrition_basis, favorite, usage_count, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'private', ?, ?, 0, 0, datetime('now'))
   `);
 
   let inserted = 0;
@@ -37,6 +44,7 @@ export function seedFuelBaseStarterFoods(userId) {
         noteParts.join(' · '),
         food.category || null,
         food.altUnits ? JSON.stringify(food.altUnits) : null,
+        nutritionBasis(food),
       );
       inserted += 1;
     }
