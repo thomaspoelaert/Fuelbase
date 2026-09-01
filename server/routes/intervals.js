@@ -60,6 +60,24 @@ function writeConfig(req, config) {
     .run(configKey(req), JSON.stringify(config));
 }
 
+function readUserSetting(req, key, fallback = null) {
+  if (!req.user?.id) return fallback;
+  const row = db.prepare(
+    'SELECT value FROM user_settings WHERE user_id = ? AND key = ? AND deleted_at IS NULL'
+  ).get(req.user.id, key);
+  if (!row?.value) return fallback;
+  try { return JSON.parse(row.value); } catch { return row.value; }
+}
+
+function mealSlotsForUser(req) {
+  const names = readUserSetting(req, 'mealNames', ['Breakfast', 'Lunch', 'Dinner', 'Snacks']);
+  if (!Array.isArray(names) || !names.length) return undefined;
+  // Shares/hours deliberately remain engine defaults by slot index. The user
+  // can rename/reorder/add Diary meal slots and the returned FuelBase targets
+  // will still line up 1:1 with the rendered meal cards.
+  return names.map((name, index) => ({ key: `meal_${index}`, label: String(name || `Meal ${index + 1}`) }));
+}
+
 function validateNumber(name, value, min, max, { nullable = false } = {}) {
   if ((value == null || value === '') && nullable) return null;
   const n = Number(value);
@@ -198,6 +216,7 @@ router.get('/plan', wrap(async (req, res) => {
     bodyWeightKg,
     proteinGPerKg: saved.proteinGPerKg,
     fatGPerKg: saved.fatGPerKg,
+    meals: mealSlotsForUser(req),
     workouts: todayWorkouts,
     nextImportantWorkout: nextImportant,
   });
