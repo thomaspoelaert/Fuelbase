@@ -1,6 +1,8 @@
 <script>
   import MacroRing from './MacroRing.svelte';
   import EnduranceFuelingCard from './EnduranceFuelingCard.svelte';
+  import EnduranceGoalIntent from './EnduranceGoalIntent.svelte';
+  import Forward48hCard from './Forward48hCard.svelte';
   import { macroLegendMode, calorieGoalMode } from '../../stores/settings.js';
   import { currentDate } from '../../stores/diary.js';
   import {
@@ -68,7 +70,9 @@
   </div>
 
   {#if $calorieGoalMode === 'endurance'}
+    <EnduranceGoalIntent plan={$endurancePlan} />
     <EnduranceFuelingCard plan={$endurancePlan} loading={$endurancePlanLoading} error={$endurancePlanError} />
+    <Forward48hCard days={$endurancePlan?.forward48h || []} />
   {/if}
 </section>
 
