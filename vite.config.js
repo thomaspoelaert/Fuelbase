@@ -69,11 +69,11 @@ export default defineConfig({
         ]
       },
       manifest: {
-        name: 'NutriTrace',
-        short_name: 'NutriTrace',
-        description: 'Trace Every Bite — Personal Nutrition Tracker',
-        theme_color: '#0A0B0F',
-        background_color: '#0A0B0F',
+        name: 'FuelBase',
+        short_name: 'FuelBase',
+        description: 'Endurance nutrition planning and food tracking powered by your training plan.',
+        theme_color: '#0C0F13',
+        background_color: '#0C0F13',
         display: 'standalone',
         orientation: 'portrait-primary',
         // Relative URLs — browsers resolve them against the manifest's own
