@@ -1,8 +1,9 @@
 <script>
   import { location, push } from 'svelte-spa-router';
   import { _ } from 'svelte-i18n';
-  import { wellnessEnabled, fitbitEnabled, withingsEnabled, garminEnabled, googleHealthEnabled, healthConnectEnabled } from '../../stores/settings.js';
+  import { wellnessEnabled, fitbitEnabled, withingsEnabled, garminEnabled, googleHealthEnabled, healthConnectEnabled, calorieGoalMode } from '../../stores/settings.js';
   import WellnessIcon from '../icons/WellnessIcon.svelte';
+  import EnduranceMobileBar from '../diary/EnduranceMobileBar.svelte';
   import { updateAvailable } from '../../lib/updates.js';
   import { pwaUpdateReady } from '../../lib/pwa-update.js';
 
@@ -20,8 +21,9 @@
     ? [...BASE_TABS.slice(0, 2), WELLNESS_TAB, ...BASE_TABS.slice(2)]
     : BASE_TABS;
 
+  $: activePath = $location.split('?')[0];
   $: activeIdx = (() => {
-    const base = $location.split('?')[0];
+    const base = activePath;
     let idx = tabs.findIndex(t => t.path !== '/' && (base === t.path || base.startsWith(t.path + '/')));
     if (idx < 0) idx = tabs.findIndex(t => t.path === base);
     return idx >= 0 ? idx : 0;
@@ -29,6 +31,10 @@
 
   function go(path) { push(path); }
 </script>
+
+{#if $calorieGoalMode === 'endurance' && activePath === '/'}
+  <EnduranceMobileBar />
+{/if}
 
 <nav class="bottom-nav" role="navigation" aria-label="Main navigation">
   <div
