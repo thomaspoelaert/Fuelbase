@@ -17,19 +17,12 @@
   let recoveryDone  = false;
   let recoveryToken = '';
 
-  // OIDC providers + password-login flag are returned by /api/auth/status.
-  // Native (Capacitor server-mode) routes the auth flow through
-  // @capacitor/browser; the IdP redirects back via a nutritrace://oidc-callback
-  // deep link which App.svelte handles. Native local mode skips OIDC entirely
-  // since there's no server to talk to.
   let oidcProviders = [];
   let passwordLoginEnabled = true;
-  // Biometric sign-in (Android server-mode only). Ready when hardware supports
-  // it AND the user has previously logged in with biometric enabled (so a
-  // saved JWT exists in Preferences ready to be unlocked).
   let _biometricReady = false;
+
   onMount(async () => {
-    if (isNative && !getServerUrl()) return; // standalone — skip
+    if (isNative && !getServerUrl()) return;
     try {
       const r = await fetch(apiUrl('/api/auth/status'), { credentials: 'include' });
       if (r.ok) {
@@ -40,7 +33,6 @@
         }
       }
     } catch {}
-    // Probe biometric availability + saved-token presence concurrently
     if (isNative && getServerUrl()) {
       try {
         const bio = await import('../lib/biometric.js');
@@ -204,25 +196,25 @@
 
       <button class="recovery-link" on:click={() => showRecovery = !showRecovery}>
         <span class="material-symbols-rounded">emergency</span>
-        {$_('login.recovery.title')}
+        Emergency recovery
       </button>
 
       {#if showRecovery}
         <div class="recovery-box" transition:slide>
-          <p class="text-3 text-xs">{$_('login.recovery.description')}</p>
+          <p class="text-3 text-xs">Use the server recovery token if you are locked out of your account.</p>
           <input class="input" type="text" bind:value={recoveryToken}
             placeholder={$_('login.recovery.token_placeholder')} />
           <button class="btn btn-danger w-full" class:loading={recovering}
             on:click={recover} disabled={recovering || !recoveryToken.trim()}>
-            {recovering ? $_('login.recovery.recovering') : $_('login.recovery.button')}
+            {recovering ? 'Recovering…' : 'Recover access'}
           </button>
         </div>
       {/if}
     {:else}
       <div class="recovery-done">
         <span class="material-symbols-rounded success-icon">check_circle</span>
-        <h3>{$_('login.recovery.done_title')}</h3>
-        <p class="text-3 text-sm">{$_('login.recovery.done_description')}</p>
+        <h3>Recovery complete</h3>
+        <p class="text-3 text-sm">You can continue with the recovered server state.</p>
       </div>
     {/if}
   </div>
