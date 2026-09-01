@@ -22,6 +22,7 @@ import './styles/modern.css';
 import App from './App.svelte';
 import { DB } from './lib/db.js';
 import { initI18n } from './i18n/index.js';
+import { initEnduranceUiBridge } from './lib/endurance-ui-bridge.js';
 
 // Pick browser-detected locale for first paint; the App-level subscription to
 // the `language` store flips it to the user's saved preference once that loads.
@@ -48,6 +49,10 @@ DB.init()
       await loadImageMap();
     }
     new App({ target: document.getElementById('app') });
+    // Headless FuelBase bridge: keeps Endurance targets authoritative across
+    // the Diary, hides the legacy calorie bar in Endurance mode and decorates
+    // normal meal cards with the engine's kcal ranges.
+    initEnduranceUiBridge();
   })
   .catch(err => {
     console.error('DB init failed:', err);
