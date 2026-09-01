@@ -32,6 +32,15 @@
     if (value === 'priority') return 'Priority recovery';
     return 'Normal recovery';
   }
+
+  function goalLabel(value) {
+    if (value === 'lose') return 'Weight loss';
+    if (value === 'gain') return 'Weight gain';
+    return 'Maintain';
+  }
+
+  $: foundation = plan?.calories?.foundation ?? plan?.calories?.base ?? 0;
+  $: goalAdjustment = Number(plan?.calories?.goalAdjustment || 0);
 </script>
 
 <section class="efw">
@@ -46,22 +55,20 @@
   </header>
 
   {#if loading}
-    <div class="efw-state">
-      <span class="state-spinner"></span>
-      <span>Loading your Intervals.icu plan…</span>
-    </div>
+    <div class="efw-state"><span class="state-spinner"></span><span>Loading your Intervals.icu plan…</span></div>
   {:else if error}
-    <div class="efw-error">
-      <span class="material-symbols-rounded">error</span>
-      <span>{error}</span>
-    </div>
+    <div class="efw-error"><span class="material-symbols-rounded">error</span><span>{error}</span></div>
   {:else if plan}
     <div class="energy-band">
-      <div><span>Everyday base</span><strong>{Math.round(plan.calories?.base || 0).toLocaleString()}</strong><small>kcal</small></div>
+      <div>
+        <span>Foundation</span>
+        <strong>{Math.round(foundation).toLocaleString()}</strong><small>kcal</small>
+        <em>{goalLabel(plan.goal?.intent)}{#if goalAdjustment} · {goalAdjustment > 0 ? '+' : ''}{Math.round(goalAdjustment)}{/if}</em>
+      </div>
       <span class="energy-operator">+</span>
-      <div class="energy-training"><span>Training</span><strong>{Math.round(plan.calories?.training || 0).toLocaleString()}</strong><small>kcal</small></div>
+      <div class="energy-training"><span>Training</span><strong>{Math.round(plan.calories?.training || 0).toLocaleString()}</strong><small>kcal</small><em>fuel protected</em></div>
       <span class="energy-operator">=</span>
-      <div class="energy-total"><span>Eat today</span><strong>{Math.round(plan.calories?.target || 0).toLocaleString()}</strong><small>kcal</small></div>
+      <div class="energy-total"><span>Eat today</span><strong>{Math.round(plan.calories?.target || 0).toLocaleString()}</strong><small>kcal</small><em>{plan.carbPeriodization?.level || 'carb'} day</em></div>
     </div>
 
     {#if plan.workouts?.length}
@@ -80,56 +87,37 @@
             </div>
 
             <div class="fuel-flow">
-              <div class="fuel-phase">
-                <div class="phase-icon"><span class="material-symbols-rounded">schedule</span></div>
-                <div><span>Before</span><strong>{Math.round(workout.fueling?.preCarbs || 0)} g carbs</strong></div>
-              </div>
+              <div class="fuel-phase"><div class="phase-icon"><span class="material-symbols-rounded">schedule</span></div><div><span>Before</span><strong>{Math.round(workout.fueling?.preCarbs || 0)} g carbs</strong></div></div>
               <span class="flow-line"></span>
-              <div class="fuel-phase during">
-                <div class="phase-icon"><span class="material-symbols-rounded">water_bottle</span></div>
-                <div><span>During</span><strong>{Math.round(workout.fueling?.duringRate || 0)} g/h</strong></div>
-              </div>
+              <div class="fuel-phase during"><div class="phase-icon"><span class="material-symbols-rounded">water_bottle</span></div><div><span>During</span><strong>{Math.round(workout.fueling?.duringRate || 0)} g/h</strong></div></div>
               <span class="flow-line"></span>
-              <div class="fuel-phase recovery">
-                <div class="phase-icon"><span class="material-symbols-rounded">restaurant</span></div>
-                <div><span>Recovery</span><strong>{Math.round(workout.fueling?.postCarbs || 0)} g carbs + {Math.round(workout.fueling?.postProtein || 0)} g protein</strong></div>
-              </div>
+              <div class="fuel-phase recovery"><div class="phase-icon"><span class="material-symbols-rounded">restaurant</span></div><div><span>Recovery</span><strong>{Math.round(workout.fueling?.postCarbs || 0)} g carbs + {Math.round(workout.fueling?.postProtein || 0)} g protein</strong></div></div>
             </div>
 
-            <div class="recovery-row">
-              <span class="material-symbols-rounded">autorenew</span>
-              <span>{urgencyLabel(workout.fueling?.recoveryUrgency)}</span>
-            </div>
+            <div class="recovery-row"><span class="material-symbols-rounded">autorenew</span><span>{urgencyLabel(workout.fueling?.recoveryUrgency)}</span></div>
           </article>
         {/each}
       </div>
     {:else}
-      <div class="rest-day">
-        <span class="material-symbols-rounded">self_improvement</span>
-        <div><strong>Rest day</strong><span>No structured training on the calendar. Your normal base target stays in place.</span></div>
-      </div>
+      <div class="rest-day"><span class="material-symbols-rounded">self_improvement</span><div><strong>Rest day</strong><span>No structured training. Goal intent is applied to the normal daily foundation.</span></div></div>
     {/if}
 
     {#if plan.eveningPrep}
       <div class="evening-prep">
         <div class="prep-icon"><span class="material-symbols-rounded">dark_mode</span></div>
-        <div>
-          <span class="prep-label">Tonight</span>
-          <strong>Front-load {Math.round(plan.eveningPrep.carbs || 0)} g carbohydrate for tomorrow</strong>
-          <small>This shifts today's carbs toward dinner/evening. It does not add calories on top of today's target.</small>
-        </div>
+        <div><span class="prep-label">Tonight</span><strong>Shift {Math.round(plan.eveningPrep.carbs || 0)} g carbohydrate toward the evening</strong><small>Prepares tomorrow's early key session without adding calories on top.</small></div>
       </div>
     {/if}
 
     {#if plan.mealTargets?.length}
       <div class="meal-plan">
-        <div class="meal-plan-head"><span>Meal guide</span><small>ranges, not hard limits</small></div>
+        <div class="meal-plan-head"><span>Meal guide</span><small>energy + practical macros</small></div>
         <div class="meal-range-grid">
           {#each plan.mealTargets as meal}
-            <div class="meal-range">
+            <div class="meal-range" class:priority={meal.guidance?.priority !== 'normal'}>
               <span>{meal.label}</span>
-              <strong>{Math.round(meal.minKcal)}–{Math.round(meal.maxKcal)}</strong>
-              <small>kcal</small>
+              <strong>{Math.round(meal.minKcal)}–{Math.round(meal.maxKcal)} kcal</strong>
+              <small>{Math.round(meal.guidance?.carbsG || 0)}g carbs · {Math.round(meal.guidance?.proteinG || 0)}g protein</small>
             </div>
           {/each}
         </div>
@@ -152,6 +140,7 @@
   .energy-band > div > span { grid-column:1/-1; color:var(--text-3); font-size:9.5px; }
   .energy-band strong { font-size:15px; font-variant-numeric:tabular-nums; }
   .energy-band small { color:var(--text-3); font-size:9px; }
+  .energy-band em { grid-column:1/-1; color:var(--text-3); font-size:8px; font-style:normal; margin-top:2px; }
   .energy-band .energy-training { border-color:color-mix(in srgb,var(--accent) 18%,var(--border)); }
   .energy-band .energy-total { background:var(--accent-dim); border-color:transparent; }
   .energy-band .energy-total strong { color:var(--accent); }
@@ -181,7 +170,7 @@
   .recovery-row { margin-top:9px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; gap:5px; color:var(--text-3); font-size:9.5px; }
   .recovery-row .material-symbols-rounded { font-size:13px; }
 
-  .evening-prep { display:flex; gap:9px; padding:12px; border:1px solid color-mix(in srgb,var(--accent) 16%,var(--border)); border-radius:15px; background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface-2)),var(--surface-2)); }
+  .evening-prep { display:flex; gap:9px; padding:12px; border:1px solid color-mix(in srgb,var(--accent) 16%,var(--border)); border-radius:15px; background:color-mix(in srgb,var(--accent) 6%,var(--surface-2)); }
   .prep-icon { width:32px; height:32px; flex:0 0 32px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:var(--accent-dim); color:var(--accent); }
   .prep-icon .material-symbols-rounded { font-size:17px; }
   .evening-prep > div:last-child { min-width:0; display:flex; flex-direction:column; gap:2px; }
@@ -194,8 +183,9 @@
   .meal-plan-head > span { font-size:10.5px; font-weight:700; color:var(--text-2); }
   .meal-plan-head small { font-size:9px; color:var(--text-3); }
   .meal-range-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
-  .meal-range { min-width:0; padding:7px 8px; border-radius:11px; background:var(--surface-2); display:grid; grid-template-columns:1fr auto; align-items:baseline; gap:1px 4px; }
-  .meal-range > span { grid-column:1/-1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-3); font-size:8.5px; }
+  .meal-range { min-width:0; padding:8px; border-radius:11px; background:var(--surface-2); display:flex; flex-direction:column; gap:2px; border:1px solid transparent; }
+  .meal-range.priority { border-color:color-mix(in srgb,var(--accent) 20%,var(--border)); background:var(--accent-dim); }
+  .meal-range > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-3); font-size:8.5px; }
   .meal-range strong { font-size:10.5px; }
   .meal-range small { color:var(--text-3); font-size:8px; }
 
@@ -207,7 +197,7 @@
 
   .efw-state { min-height:72px; display:flex; align-items:center; justify-content:center; gap:8px; color:var(--text-3); font-size:11px; }
   .state-spinner { width:15px; height:15px; border-radius:50%; border:2px solid var(--border-strong); border-top-color:var(--accent); animation:spin .8s linear infinite; }
-  .efw-error { display:flex; gap:8px; align-items:flex-start; padding:11px; border-radius:14px; background:color-mix(in srgb,var(--danger,#d44) 8%,var(--surface-2)); color:var(--danger,#d44); font-size:11px; line-height:1.4; }
+  .efw-error { display:flex; gap:8px; align-items:flex-start; padding:11px; border-radius:14px; background:color-mix(in srgb,var(--danger) 8%,var(--surface-2)); color:var(--danger); font-size:11px; line-height:1.4; }
   .efw-error .material-symbols-rounded { font-size:17px; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
