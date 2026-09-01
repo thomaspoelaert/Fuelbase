@@ -3,7 +3,13 @@
   import EnduranceFuelingCard from './EnduranceFuelingCard.svelte';
   import { macroLegendMode, calorieGoalMode } from '../../stores/settings.js';
   import { currentDate } from '../../stores/diary.js';
-  import { IntervalsClient } from '../../lib/intervals-client.js';
+  import {
+    endurancePlan,
+    endurancePlanLoading,
+    endurancePlanError,
+    endurancePlanDate,
+    loadEndurancePlan,
+  } from '../../stores/endurance-plan.js';
 
   export let eatenKcal = 0;
   export let protein = 0;
@@ -16,46 +22,18 @@
   export let onOpenSummary = () => {};
   export let onOpenTrends = null;
 
-  let endurancePlan = null;
-  let enduranceLoading = false;
-  let enduranceError = '';
-  let _loadedDate = null;
-
-  async function loadEndurance(date) {
-    if (!date || enduranceLoading) return;
-    enduranceLoading = true;
-    enduranceError = '';
-    try {
-      endurancePlan = await IntervalsClient.plan(date);
-      _loadedDate = date;
-    } catch (e) {
-      endurancePlan = null;
-      enduranceError = e?.data?.needsConfig
-        ? 'Set body weight and base calories in Settings → Goals.'
-        : e?.message || 'Could not load Intervals.icu plan.';
-      _loadedDate = date;
-    } finally {
-      enduranceLoading = false;
-    }
+  $: if ($calorieGoalMode === 'endurance' && $currentDate && $endurancePlanDate !== $currentDate) {
+    loadEndurancePlan($currentDate);
   }
 
-  $: if ($calorieGoalMode === 'endurance' && $currentDate && _loadedDate !== $currentDate) {
-    loadEndurance($currentDate);
-  }
-  $: if ($calorieGoalMode !== 'endurance') {
-    endurancePlan = null;
-    enduranceError = '';
-    _loadedDate = null;
-  }
-
-  $: _goalKcal = $calorieGoalMode === 'endurance' && endurancePlan?.calories?.target
-    ? endurancePlan.calories.target : goalKcal;
-  $: _proteinGoal = $calorieGoalMode === 'endurance' && endurancePlan?.macros?.proteins
-    ? endurancePlan.macros.proteins : proteinGoal;
-  $: _carbGoal = $calorieGoalMode === 'endurance' && endurancePlan?.macros?.carbohydrates
-    ? endurancePlan.macros.carbohydrates : carbGoal;
-  $: _fatGoal = $calorieGoalMode === 'endurance' && endurancePlan?.macros?.fat
-    ? endurancePlan.macros.fat : fatGoal;
+  $: _goalKcal = $calorieGoalMode === 'endurance' && $endurancePlan?.calories?.target
+    ? $endurancePlan.calories.target : goalKcal;
+  $: _proteinGoal = $calorieGoalMode === 'endurance' && $endurancePlan?.macros?.proteins
+    ? $endurancePlan.macros.proteins : proteinGoal;
+  $: _carbGoal = $calorieGoalMode === 'endurance' && $endurancePlan?.macros?.carbohydrates
+    ? $endurancePlan.macros.carbohydrates : carbGoal;
+  $: _fatGoal = $calorieGoalMode === 'endurance' && $endurancePlan?.macros?.fat
+    ? $endurancePlan.macros.fat : fatGoal;
 </script>
 
 <section class="day-summary-widget card">
@@ -90,7 +68,7 @@
   </div>
 
   {#if $calorieGoalMode === 'endurance'}
-    <EnduranceFuelingCard plan={endurancePlan} loading={enduranceLoading} error={enduranceError} />
+    <EnduranceFuelingCard plan={$endurancePlan} loading={$endurancePlanLoading} error={$endurancePlanError} />
   {/if}
 </section>
 
