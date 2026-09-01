@@ -1,9 +1,8 @@
 name: Checks
 
-# The repo's other workflow (docker.yml) builds and publishes images; keeping
-# checks separate means a red check never blocks an image push and a slow
-# multi-arch build never delays PR feedback.
+# Keep checks separate from image publishing so PR feedback stays fast.
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [ main, dev ]
@@ -15,7 +14,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node 20 to match node:20-alpine in the Dockerfile.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -30,3 +28,6 @@ jobs:
 
       - name: Tests
         run: npm test
+
+      - name: Build
+        run: npm run build
