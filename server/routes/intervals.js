@@ -3,15 +3,34 @@ import db from '../db.js';
 import { wrap } from '../logger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { encrypt, decrypt } from '../lib/token-crypto.js';
-import { listEvents, listActivities, testConnection, reconcilePlannedAndCompleted } from '../lib/intervals.js';
-import { calculateEnduranceDay } from '../../src/lib/endurance-nutrition.js';
+import {
+  listEvents,
+  listActivities,
+  testConnection,
+  reconcilePlannedAndCompleted,
+} from '../lib/intervals.js';
+import { calculateEnduranceDay, classifyWorkout } from '../../src/lib/endurance-nutrition.js';
 
 const router = Router();
 router.use(requireAuth);
 
+const DEFAULT_CONFIG = Object.freeze({
+  baseCalories: 2400,
+  bodyWeightKg: null,
+  proteinGPerKg: 1.8,
+  fatGPerKg: 0.9,
+});
+
+function uid(req) {
+  return req.user?.id ?? 0;
+}
+
 function keyName(req) {
-  const uid = req.user?.id ?? 0;
-  return `fuelbase_intervals_api_key_${uid}`;
+  return `fuelbase_intervals_api_key_${uid(req)}`;
+}
+
+function configKey(req) {
+  return `fuelbase_endurance_config_${uid(req)}`;
 }
 
 function readKey(req) {
@@ -23,6 +42,33 @@ function writeKey(req, value) {
   const encrypted = encrypt(value);
   db.prepare(`INSERT INTO app_config (key, value) VALUES (?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(keyName(req), encrypted);
+}
+
+function readConfig(req) {
+  const row = db.prepare('SELECT value FROM app_config WHERE key = ?').get(configKey(req));
+  if (!row?.value) return { ...DEFAULT_CONFIG };
+  try {
+    return { ...DEFAULT_CONFIG, ...JSON.parse(row.value) };
+  } catch {
+    return { ...DEFAULT_CONFIG };
+  }
+}
+
+function writeConfig(req, config) {
+  db.prepare(`INSERT INTO app_config (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+    .run(configKey(req), JSON.stringify(config));
+}
+
+function validateNumber(name, value, min, max, { nullable = false } = {}) {
+  if ((value == null || value === '') && nullable) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) {
+    const err = new Error(`${name} must be between ${min} and ${max}`);
+    err.status = 400;
+    throw err;
+  }
+  return n;
 }
 
 function validDate(v) {
@@ -37,13 +83,51 @@ async function loadRange(apiKey, oldest, newest) {
   return reconcilePlannedAndCompleted(events, activities);
 }
 
+function isImportantWorkout(workout) {
+  const c = classifyWorkout(workout);
+  return c.hard || c.long || c.durationMin >= 90;
+}
+
 router.get('/status', wrap((req, res) => {
-  res.json({ connected: !!readKey(req) });
+  res.json({
+    connected: !!readKey(req),
+    config: readConfig(req),
+  });
+}));
+
+router.get('/config', wrap((req, res) => {
+  res.json({
+    connected: !!readKey(req),
+    ...readConfig(req),
+  });
+}));
+
+router.put('/config', wrap((req, res) => {
+  const current = readConfig(req);
+  const next = {
+    ...current,
+    baseCalories: req.body?.baseCalories !== undefined
+      ? validateNumber('baseCalories', req.body.baseCalories, 800, 6000)
+      : current.baseCalories,
+    bodyWeightKg: req.body?.bodyWeightKg !== undefined
+      ? validateNumber('bodyWeightKg', req.body.bodyWeightKg, 30, 250, { nullable: true })
+      : current.bodyWeightKg,
+    proteinGPerKg: req.body?.proteinGPerKg !== undefined
+      ? validateNumber('proteinGPerKg', req.body.proteinGPerKg, 1.0, 3.0)
+      : current.proteinGPerKg,
+    fatGPerKg: req.body?.fatGPerKg !== undefined
+      ? validateNumber('fatGPerKg', req.body.fatGPerKg, 0.4, 2.0)
+      : current.fatGPerKg,
+  };
+
+  writeConfig(req, next);
+  res.json({ connected: !!readKey(req), ...next });
 }));
 
 router.put('/credentials', wrap(async (req, res) => {
   const apiKey = String(req.body?.apiKey || '').trim();
   if (!apiKey) return res.status(400).json({ error: 'Intervals.icu API key required' });
+
   const result = await testConnection(apiKey);
   writeKey(req, apiKey);
   res.json({ connected: true, ...result });
@@ -64,11 +148,13 @@ router.post('/test', wrap(async (req, res) => {
 router.get('/workouts', wrap(async (req, res) => {
   const apiKey = readKey(req);
   if (!apiKey) return res.status(409).json({ error: 'Intervals.icu is not connected' });
+
   const oldest = String(req.query.oldest || '').slice(0, 10);
   const newest = String(req.query.newest || '').slice(0, 10);
   if (!validDate(oldest) || !validDate(newest)) {
     return res.status(400).json({ error: 'oldest and newest must be YYYY-MM-DD' });
   }
+
   const workouts = await loadRange(apiKey, oldest, newest);
   res.json({ oldest, newest, workouts });
 }));
@@ -78,36 +164,54 @@ router.get('/plan', wrap(async (req, res) => {
   if (!apiKey) return res.status(409).json({ error: 'Intervals.icu is not connected' });
 
   const date = String(req.query.date || '').slice(0, 10);
-  const baseCalories = Number(req.query.baseCalories);
-  const bodyWeightKg = Number(req.query.bodyWeightKg);
   if (!validDate(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
-  if (!Number.isFinite(baseCalories) || baseCalories <= 0) return res.status(400).json({ error: 'baseCalories must be positive' });
-  if (!Number.isFinite(bodyWeightKg) || bodyWeightKg <= 0) return res.status(400).json({ error: 'bodyWeightKg must be positive' });
 
-  // Read one extra day so tomorrow's important workout can influence recovery
-  // urgency and evening carbohydrate preparation.
+  const saved = readConfig(req);
+  const baseCalories = req.query.baseCalories !== undefined
+    ? validateNumber('baseCalories', req.query.baseCalories, 800, 6000)
+    : saved.baseCalories;
+  const bodyWeightKg = req.query.bodyWeightKg !== undefined
+    ? validateNumber('bodyWeightKg', req.query.bodyWeightKg, 30, 250)
+    : saved.bodyWeightKg;
+
+  if (!bodyWeightKg) {
+    return res.status(409).json({
+      error: 'Body weight is required before an endurance plan can be calculated',
+      needsConfig: true,
+    });
+  }
+
   const next = new Date(`${date}T12:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 1);
   const nextDate = next.toISOString().slice(0, 10);
+
   const all = await loadRange(apiKey, date, nextDate);
   const todayWorkouts = all.filter(w => w.date === date);
   const tomorrow = all.filter(w => w.date === nextDate);
-  const nextImportant = tomorrow.find(w => {
-    const intensity = Number(w.intensity || 0);
-    const duration = Number(w.durationMin || 0);
-    const name = String(w.name || '');
-    return intensity >= 70 || duration >= 90 || /(threshold|tempo|sweet.?spot|vo2|interval|long|race|brick|quality)/i.test(name);
-  });
+  const nextImportant = tomorrow
+    .filter(isImportantWorkout)
+    .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')))[0] || null;
 
   const plan = calculateEnduranceDay({
     date,
     baseCalories,
     bodyWeightKg,
+    proteinGPerKg: saved.proteinGPerKg,
+    fatGPerKg: saved.fatGPerKg,
     workouts: todayWorkouts,
-    nextImportantWorkoutAt: nextImportant?.startTime || null,
+    nextImportantWorkout: nextImportant,
   });
 
-  res.json({ ...plan, nextImportantWorkout: nextImportant || null });
+  res.json({
+    ...plan,
+    nextImportantWorkout: nextImportant,
+    config: {
+      baseCalories,
+      bodyWeightKg,
+      proteinGPerKg: saved.proteinGPerKg,
+      fatGPerKg: saved.fatGPerKg,
+    },
+  });
 }));
 
 export default router;

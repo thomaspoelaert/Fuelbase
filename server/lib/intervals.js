@@ -1,4 +1,5 @@
 const BASE_URL = 'https://intervals.icu/api/v1';
+const FALLBACK_MATCH_MAX_MS = 6 * 60 * 60 * 1000;
 
 function authHeader(apiKey) {
   return `Basic ${Buffer.from(`API_KEY:${apiKey}`).toString('base64')}`;
@@ -103,6 +104,14 @@ function sportKey(v) {
   return s;
 }
 
+function timeGapMs(a, b) {
+  if (!a || !b) return Infinity;
+  const ams = new Date(a).getTime();
+  const bms = new Date(b).getTime();
+  if (!Number.isFinite(ams) || !Number.isFinite(bms)) return Infinity;
+  return Math.abs(ams - bms);
+}
+
 export function reconcilePlannedAndCompleted(events = [], activities = []) {
   const planned = events.filter(e => e.category === 'WORKOUT' || !e.category).map(normalizeEvent);
   const completed = activities.map(normalizeActivity);
@@ -110,20 +119,29 @@ export function reconcilePlannedAndCompleted(events = [], activities = []) {
 
   for (const a of completed) {
     let match = null;
+
+    // Explicit Intervals pairing is authoritative.
     if (a.pairedEventId != null) {
-      match = planned.find(e => String(e.eventId) === String(a.pairedEventId));
+      match = planned.find(e => String(e.eventId) === String(a.pairedEventId)) || null;
     }
+
     if (!match) {
-      // Conservative fallback: same date + same broad sport + nearest start time.
-      const candidates = planned.filter(e => !usedEvents.has(e.sourceId) && e.date === a.date && sportKey(e.sport) === sportKey(a.sport));
-      if (candidates.length === 1) match = candidates[0];
-      else if (candidates.length > 1 && a.startTime) {
-        const at = new Date(a.startTime).getTime();
-        match = candidates
-          .map(e => ({ e, d: e.startTime ? Math.abs(new Date(e.startTime).getTime() - at) : Infinity }))
-          .sort((x, y) => x.d - y.d)[0]?.e || null;
-      }
+      // Conservative fallback only: same day + same broad sport + reasonably
+      // close start time. Do not replace a morning plan with an evening
+      // activity merely because both are runs/rides on the same date.
+      const candidates = planned
+        .filter(e =>
+          !usedEvents.has(e.sourceId)
+          && e.date === a.date
+          && sportKey(e.sport) === sportKey(a.sport)
+        )
+        .map(e => ({ e, d: timeGapMs(e.startTime, a.startTime) }))
+        .filter(x => x.d <= FALLBACK_MATCH_MAX_MS)
+        .sort((x, y) => x.d - y.d);
+
+      if (candidates.length) match = candidates[0].e;
     }
+
     if (match) {
       usedEvents.add(match.sourceId);
       a.replacesPlannedEventId = match.eventId;
