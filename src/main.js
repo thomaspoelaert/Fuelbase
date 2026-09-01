@@ -19,6 +19,7 @@ import './styles/forms.css';
 // FuelBase-specific product layer. Kept separate from upstream NutriTrace
 // primitives so upstream merges remain reviewable and low-risk.
 import './styles/modern.css';
+import './styles/endurance-ui.css';
 import App from './App.svelte';
 import { DB } from './lib/db.js';
 import { initI18n } from './i18n/index.js';
