@@ -20,6 +20,7 @@ import './styles/forms.css';
 // primitives so upstream merges remain reviewable and low-risk.
 import './styles/modern.css';
 import './styles/endurance-ui.css';
+import './styles/fuelbase-theme.css';
 import App from './App.svelte';
 import { DB } from './lib/db.js';
 import { initI18n } from './i18n/index.js';
@@ -35,7 +36,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e =
   if (appearance === 'system') {
     document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
     const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.content = e.matches ? '#0C0F13' : '#F4F5F7';
+    if (meta) meta.content = e.matches ? '#0B0C0E' : '#F5F5F7';
   }
 });
 
@@ -61,13 +62,13 @@ DB.init()
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
                   height:100dvh;padding:32px;text-align:center;gap:16px;font-family:sans-serif;">
         <span style="font-size:48px">⚠️</span>
-        <h2 style="color:#F5F7F9">Database Error</h2>
-        <p style="color:rgba(245,247,249,0.68);max-width:300px">
+        <h2 style="color:#F3F3F5">Database Error</h2>
+        <p style="color:rgba(243,243,245,0.68);max-width:300px">
           Could not open the local database. Try closing other tabs or clearing site data.
         </p>
         <button onclick="location.reload()"
-          style="padding:12px 24px;border-radius:14px;background:#4FFFB0;
-                 color:#0C0F13;font-weight:650;border:none;cursor:pointer;font-size:15px;">
+          style="padding:12px 24px;border-radius:14px;background:#94ADA4;
+                 color:#101312;font-weight:650;border:none;cursor:pointer;font-size:15px;">
           Retry
         </button>
       </div>`;
