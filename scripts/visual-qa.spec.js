@@ -137,6 +137,14 @@ async function screenshot(page, name, { fullPage = true } = {}) {
   await page.screenshot({ path: `visual-qa/${name}.png`, fullPage, animations: 'disabled' });
 }
 
+async function assertEnduranceSettings(page, label) {
+  await expect(page.locator('.goal-mode-card.active')).toContainText('Endurance');
+  await expect(page.locator('.endurance-card')).toHaveCount(2);
+  await expect(page.locator('.connection-pill')).toContainText('Connected');
+  await expect(page.locator('.endurance-formula')).toContainText('2,400 kcal');
+  await assertNoHorizontalOverflow(page, label);
+}
+
 test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   test.setTimeout(120000);
   await fs.mkdir('visual-qa', { recursive: true });
@@ -175,6 +183,10 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await assertNoHorizontalOverflow(d, 'desktop settings');
   await screenshot(d, '05-settings-desktop');
 
+  await navigate(d, `${BASE_URL}/#/settings/goals`);
+  await assertEnduranceSettings(d, 'desktop endurance settings');
+  await screenshot(d, '06-endurance-settings-desktop');
+
   notes.push(`desktop page errors: ${desktopErrors.length}`);
   if (desktopErrors.length) notes.push(...desktopErrors.map(e => `desktop error: ${e}`));
   await desktop.close();
@@ -191,24 +203,28 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await expect(m.locator('.emb')).toBeVisible();
   await expect(m.locator('.diary-bottom-bar')).toBeHidden();
   await assertNoHorizontalOverflow(m, 'mobile diary collapsed');
-  await screenshot(m, '06-diary-iphone-collapsed', { fullPage: false });
+  await screenshot(m, '07-diary-iphone-collapsed', { fullPage: false });
 
   await m.locator('.emb-summary').click();
   await expect(m.locator('.emb')).toHaveClass(/expanded/);
   await assertNoHorizontalOverflow(m, 'mobile diary expanded');
-  await screenshot(m, '07-diary-iphone-expanded', { fullPage: false });
+  await screenshot(m, '08-diary-iphone-expanded', { fullPage: false });
 
   await navigate(m, `${BASE_URL}/#/goals`);
   await assertNoHorizontalOverflow(m, 'mobile goals');
-  await screenshot(m, '08-goals-iphone');
+  await screenshot(m, '09-goals-iphone');
 
   await navigate(m, `${BASE_URL}/#/foods`);
   await assertNoHorizontalOverflow(m, 'mobile foods');
-  await screenshot(m, '09-foods-iphone', { fullPage: false });
+  await screenshot(m, '10-foods-iphone', { fullPage: false });
 
   await navigate(m, `${BASE_URL}/#/settings`);
   await assertNoHorizontalOverflow(m, 'mobile settings');
-  await screenshot(m, '10-settings-iphone', { fullPage: false });
+  await screenshot(m, '11-settings-iphone', { fullPage: false });
+
+  await navigate(m, `${BASE_URL}/#/settings/goals`);
+  await assertEnduranceSettings(m, 'mobile endurance settings');
+  await screenshot(m, '12-endurance-settings-iphone');
 
   notes.push(`mobile page errors: ${mobileErrors.length}`);
   if (mobileErrors.length) notes.push(...mobileErrors.map(e => `mobile error: ${e}`));
