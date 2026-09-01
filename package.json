@@ -15,7 +15,8 @@
     "cap:sync": "npm run build && npx cap sync",
     "cap:add:android": "npx cap add android",
     "i18n:check": "node scripts/i18n-check.cjs",
-    "test": "node --test scripts/*.test.js",
+    "test": "node --test scripts/*.test.js && node --check scripts/intervals-live-smoke.mjs",
+    "smoke:intervals": "node scripts/intervals-live-smoke.mjs",
     "postinstall": "node scripts/postinstall.cjs"
   },
   "dependencies": {

@@ -45,6 +45,31 @@ FUELBASE_FULL_NAME=<optional display name>
 
 The Intervals.icu API key is entered in the FuelBase UI and stored encrypted in the SQLite database. Do not put the Intervals key in source control.
 
+## Live Intervals.icu smoke test
+
+Before merging or after deploying a new build, the repository can exercise the real Intervals API, planned/completed reconciliation and the endurance nutrition engine in one command. The API key is read only from the environment and is never printed.
+
+```bash
+INTERVALS_API_KEY='<private-key>' \
+FUELBASE_BASE_CALORIES=2400 \
+FUELBASE_BODY_WEIGHT_KG=80 \
+npm run smoke:intervals
+```
+
+By default the smoke test uses today's date in `Europe/Brussels` and fetches today plus the following day. Optional controls:
+
+```text
+SMOKE_DATE=2026-09-01
+SMOKE_OLDEST=2026-09-01
+SMOKE_NEWEST=2026-09-03
+SMOKE_TIME_ZONE=Europe/Brussels
+SMOKE_REQUIRE_WORKOUTS=1
+```
+
+The command exits non-zero if Intervals authentication/fetching fails, if a completed activity does not correctly replace its paired planned event, or if the nutrition engine returns an invalid plan. Output is limited to a compact workout/plan summary; the API key and raw Intervals payload are not logged.
+
+For a production-host smoke test, first run the normal `/api/health` healthcheck and sign in to the PWA. Then connect Intervals through Settings → Goals and verify that the same real planned/completed workouts are reflected in Diary.
+
 ## iPhone installation
 
 Once the deployment has an HTTPS domain:
