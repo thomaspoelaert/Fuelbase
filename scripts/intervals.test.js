@@ -15,10 +15,12 @@ test('normalizes planned workout event', () => {
     name: 'Z2',
     moving_time: 7200,
     joules: 1000000,
+    carbs_per_hour: 65,
   });
   assert.equal(e.planned, true);
   assert.equal(e.durationMin, 120);
   assert.equal(e.joules, 1000000);
+  assert.equal(e.carbsPerHour, 65);
 });
 
 test('normalizes completed activity', () => {
@@ -44,6 +46,27 @@ test('completed activity replaces paired planned workout', () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].completed, true);
   assert.equal(rows[0].replacesPlannedEventId, 123);
+});
+
+test('completed activity inherits planned Intervals carb target', () => {
+  const rows = reconcilePlannedAndCompleted([
+    { id: 123, category: 'WORKOUT', start_date_local: '2026-09-01T18:00:00', type: 'Ride', name: 'Z2', moving_time: 7200, carbs_per_hour: 68 },
+  ], [
+    { id: 'i1', start_date_local: '2026-09-01T18:02:00', type: 'Ride', moving_time: 7100, calories: 1030, paired_event_id: 123 },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].carbsPerHour, 68);
+  assert.equal(rows[0].carbsPerHourSource, 'planned_event');
+});
+
+test('completed activity explicit carb target wins over planned value', () => {
+  const rows = reconcilePlannedAndCompleted([
+    { id: 123, category: 'WORKOUT', start_date_local: '2026-09-01T18:00:00', type: 'Ride', name: 'Z2', moving_time: 7200, carbs_per_hour: 68 },
+  ], [
+    { id: 'i1', start_date_local: '2026-09-01T18:02:00', type: 'Ride', moving_time: 7100, calories: 1030, carbs_per_hour: 75, paired_event_id: 123 },
+  ]);
+  assert.equal(rows[0].carbsPerHour, 75);
+  assert.equal(rows[0].carbsPerHourSource, undefined);
 });
 
 test('same-day same-sport fallback reconciles when pair id is absent and timing is close', () => {
