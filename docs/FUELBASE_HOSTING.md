@@ -66,4 +66,4 @@ Render Free is useful for throwaway preview deployments and visual testing, but 
 
 Cloudflare Pages/Workers + D1 is a viable future architecture for a one-user FuelBase, but it is not a drop-in host for the current Express + `better-sqlite3` backend. Moving there requires a backend/database adapter migration. Keep this as a later optimization rather than blocking the first usable PWA.
 
-<!-- CI trigger: 2026-09-01 -->
+<!-- CI trigger: 2026-09-01 enabled -->
