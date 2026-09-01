@@ -68,20 +68,24 @@ SMOKE_REQUIRE_WORKOUTS=1
 
 The command exits non-zero if Intervals authentication/fetching fails, if a completed activity does not correctly replace its paired planned event, or if the nutrition engine returns an invalid plan. Output is limited to a compact workout/plan summary; the API key and raw Intervals payload are not logged.
 
-### Run the live smoke from GitHub
+### Pre-merge validation
 
-A manual workflow is included at `.github/workflows/live-intervals-smoke.yml`. This is the easiest repeatable browser-only validation path:
+Before PR #1 is merged, run `npm run smoke:intervals` from a local checkout of `feature/intervals-endurance` or from a temporary deployment of that branch. This is the correct pre-merge route because GitHub only exposes a `workflow_dispatch` workflow for manual use once that workflow exists on the repository's default branch.
+
+For a branch deployment, first run the normal `/api/health` healthcheck and sign in to the PWA. Connect Intervals through Settings → Goals and verify that the same real planned/completed workouts are reflected in Diary.
+
+### Repeatable GitHub smoke after merge
+
+A manual workflow is included at `.github/workflows/live-intervals-smoke.yml`. Once this workflow exists on the default branch, it provides a repeatable browser-only validation path:
 
 1. In the repository, open **Settings → Secrets and variables → Actions**.
 2. Add one repository secret named `INTERVALS_API_KEY` containing the private Intervals.icu API key.
 3. Open **Actions → Live Intervals Smoke**.
-4. Select **Run workflow** on `feature/intervals-endurance` while the PR is still under test.
+4. Select **Run workflow** and choose the branch/ref to validate.
 5. Optionally enter a specific date, base kcal/day and body weight. Leave the date blank to use today in `Europe/Brussels`.
 6. Keep **require workouts** enabled when validating a date that should contain a real planned or completed session.
 
-The workflow checks out the selected branch, uses Node 22, installs the locked dependencies and runs the same `npm run smoke:intervals` command. GitHub masks the repository secret and the script never prints it.
-
-For a production-host smoke test, first run the normal `/api/health` healthcheck and sign in to the PWA. Then connect Intervals through Settings → Goals and verify that the same real planned/completed workouts are reflected in Diary.
+The workflow checks out the selected ref, uses Node 22, installs the locked dependencies and runs the same `npm run smoke:intervals` command. GitHub masks the repository secret and the script never prints it.
 
 ## iPhone installation
 
