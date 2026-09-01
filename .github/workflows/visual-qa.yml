@@ -1,5 +1,7 @@
 name: Visual QA
 
+# This gate covers desktop + iPhone rendering and the Endurance goal-intent
+# config round trip (save, navigate away, reload, verify persisted selection).
 on:
   workflow_dispatch:
   pull_request:
