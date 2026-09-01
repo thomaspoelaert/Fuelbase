@@ -6,9 +6,8 @@ html.fuelbase-endurance-active .diary-bottom-bar {
 }
 
 /* Meal targets are attached as data attributes by endurance-ui-bridge.js.
-   Keep the normal meal card intact; the range sits beside the meal name so
-   Breakfast/Lunch/Dinner remain recognisable as normal meals rather than
-   becoming artificial pre/post workout buckets. */
+   Keep the normal meal card intact; the compact target chip now shows both
+   an energy range and practical carbohydrate/protein guidance. */
 html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name {
   display: inline-flex;
   align-items: center;
@@ -17,7 +16,7 @@ html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-nam
 }
 
 html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name::after {
-  content: attr(data-fuelbase-target-label);
+  content: attr(data-fuelbase-target-label) " · " attr(data-fuelbase-guidance-label);
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -33,7 +32,8 @@ html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-nam
   white-space: nowrap;
 }
 
-html.fuelbase-endurance-active .meal-group[data-fuelbase-workout-overlay="true"] .meal-name::after {
+html.fuelbase-endurance-active .meal-group[data-fuelbase-workout-overlay="true"] .meal-name::after,
+html.fuelbase-endurance-active .meal-group[data-fuelbase-priority="recovery"] .meal-name::after {
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
   background: var(--accent-dim);
   color: var(--accent);
@@ -68,8 +68,9 @@ html.fuelbase-endurance-active .meal-group[data-fuelbase-timing-label] .meal-hea
 
 @media (max-width: 520px) {
   html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name::after {
-    font-size: 9px;
+    font-size: 8.5px;
     padding-inline: 7px;
+    white-space: normal;
   }
 
   html.fuelbase-endurance-active .meal-group[data-fuelbase-timing-label] .meal-header::before {
