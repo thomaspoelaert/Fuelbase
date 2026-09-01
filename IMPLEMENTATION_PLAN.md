@@ -1,136 +1,105 @@
-# FuelBase Endurance Integration — Implementation Plan
+# FuelBase Endurance Layer — Implementation Plan
 
 ## Goal
-Extend the NutriTrace fork into a web-first endurance nutrition tracker with Intervals.icu as the training source of truth, while preserving NutriTrace's mature food diary, foods, meals, recipes, barcode/Open Food Facts workflow, and realistic breakfast/lunch/dinner structure.
 
-## Architecture
-- Keep NutriTrace diary/food infrastructure unchanged where possible.
-- Add a dedicated Intervals.icu integration layer.
-- Add a pure, deterministic endurance nutrition engine separate from UI and persistence.
-- Separate daily energy targeting from workout fueling allocation.
-- Planned workouts drive forecasts; completed activities replace their paired planned estimate when available.
-- Keep FuelBase-specific visual/product changes in a dedicated modern UI layer wherever possible so upstream NutriTrace merges remain reviewable.
+Build a focused endurance-nutrition layer on top of NutriTrace instead of creating another food tracker. Existing food, meal, recipe, barcode, diary and SQLite infrastructure remains the foundation.
 
-## Phase 1 — Intervals.icu
-Status: substantially implemented.
+Core flow:
 
-1. Store the Intervals API key encrypted at rest.
-2. Expose connection, test, disconnect and config endpoints through the existing server.
-3. Read planned events and completed activities by date range.
-4. Normalize sport, start time, duration, distance, load/intensity, calories and work/kJ.
-5. Reconcile completed activities against planned workouts using `paired_event_id`, with a conservative time-aware same-day fallback.
-6. Never count a matched planned workout and completed activity together.
-7. Prefer measured cycling work/kJ over ambiguous generic wearable calorie fields when available.
+`Base kcal -> Intervals planned/completed -> exercise energy -> daily kcal/macros -> pre/during/recovery -> realistic meal allocation -> existing food logging`
 
-Future consideration after real-use testing: persist/cache Intervals responses if network latency or API limits justify it. Do not add storage complexity pre-emptively.
+## Implemented
 
-## Phase 2 — Endurance nutrition engine
-Status: implemented core; fueling defaults still need one final calibration pass.
+### Deterministic nutrition engine
 
-Pure module inputs:
-- date
-- base kcal
-- body weight
-- meal schedule
-- planned/completed workouts
-- next relevant workout
-- fueling settings
+- Daily target = manual base calories + exercise energy.
+- Exercise energy fallbacks for bike/run/swim/general workouts.
+- Cycling with measured mechanical work prefers kJ as the exercise-energy anchor.
+- Protein and fat floors use configurable g/kg; carbohydrate absorbs most training variation.
+- Pre/during/post targets depend on sport, duration and intensity.
+- Recovery urgency depends on the next important workout.
+- Early next-day quality/long sessions shift carbohydrate emphasis into the prior evening without adding energy.
 
-Outputs:
-- base kcal
-- training kcal
-- daily kcal target
-- daily protein/fat/carbohydrate targets
-- per-workout pre/during/post carbohydrate targets
-- post-workout protein target
-- recovery urgency
-- meal-level target ranges
-- standalone pre/during/post fuel when no normal meal fits the timing window
-- previous-evening carbohydrate preparation for an early important next-day session
+### Fueling calibration
 
-Core rules:
-- Daily energy = manually configured base kcal + exercise energy.
-- Exercise fueling is timing/allocation, not extra energy on top of exercise energy already added.
-- Completed data supersedes planned estimates.
-- Bike energy fallback: measured mechanical work/kJ -> activity calories -> duration/intensity estimate.
-- Run fallback: activity calories -> body mass × distance -> duration/intensity estimate.
-- Swim fallback: activity calories -> duration/intensity estimate.
-- Fueling depends on sport, duration, intensity and start time.
-- Recovery aggressiveness depends on time until the next important workout.
-- Previous-evening carbohydrate preparation redistributes existing daily energy; it must not invent extra calories.
+- Explicit Intervals `carbs_per_hour` is authoritative when present.
+- Paired completed activities inherit the planned carb target when the completed activity does not contain its own target.
+- Bike defaults are performance-forward: ~2 h endurance = 60 g/h; long rides = 90 g/h.
+- Run defaults are intentionally somewhat lower than bike defaults.
+- During-workout carbs remain part of total daily energy, never extra on top.
 
-Next engine calibration:
-- honour an explicit per-workout carbohydrate-rate override from Intervals.icu when present;
-- move default steady endurance fueling toward ~60 g/h for 90–150 min and ~90 g/h for long rides, while keeping short/easy and swim logic conservative;
-- keep hard-session rates intensity-aware instead of blindly using one universal number.
+### Training-centric energy allocation
 
-## Phase 3 — Realistic meal allocation
-Status: core implemented.
+- Each workout's added energy is allocated in order: during -> pre -> recovery -> nearest normal meals.
+- Remaining workout energy is biased toward the post/recovery meal and nearby pre-workout meal instead of being spread arbitrarily across the day.
+- Base meal energy remains intact so breakfast/lunch/dinner stay realistic.
+- Existing normal meals can serve as pre/recovery meals; unnecessary artificial meal slots are avoided.
+- Meal targets are ranges, not pseudo-precise fixed kcal values.
 
-- Preserve Breakfast, Lunch and Dinner as normal meals.
-- Allocate a baseline share of base kcal to normal meals before workout overlays.
-- Add workout energy preferentially to the pre-workout window, during-workout intake and the first suitable post-workout meal.
-- Reuse an existing normal meal as pre/post workout when timing makes sense instead of creating artificial extra meals.
-- Use ranges rather than false precision for meal targets.
-- Enforce sensible minimum normal-meal floors so training allocation cannot reduce breakfast/lunch/dinner to token meals.
-- Late sessions can shift the dinner timing target instead of inventing a separate recovery meal.
-- Early next-day quality/long sessions can shift carbohydrate emphasis toward the previous evening without changing total daily calories.
+### Intervals.icu
 
-Still to add after the next Diary integration pass:
-- show the calculated target range directly on each corresponding meal card, not only in the Training & Fueling dashboard.
+- Encrypted API-key storage.
+- Connection/test/disconnect endpoints.
+- Planned workout + completed activity retrieval.
+- Completed activities replace paired planned estimates; never double-count.
+- Conservative time/sport fallback pairing when Intervals pairing is absent.
+- `/api/v1/intervals/plan` produces one full FuelBase day plan.
+- User-configured diary meal names are read server-side so plan meal targets line up with rendered meal slots.
 
-## Phase 4 — UI
-Status: major first pass implemented.
+### Diary integration
 
-### Endurance product UI
-- Endurance is a first-class goal mode in Settings → Goals.
-- Goals now uses strategy cards instead of a crowded four-way segmented control.
-- Endurance setup has a dedicated Intervals source card and Daily Foundation card.
-- Desktop Diary right rail has a Training & Fueling dashboard with energy composition, planned/actual workout status, pre/during/recovery flow, evening prep and meal ranges.
-- Mobile/bottom-nav Diary gets a dedicated expandable Endurance bar showing the true Intervals-derived target, consumed/remaining kcal, carbohydrate progress and workout fueling.
+- One shared endurance-plan store drives all FuelBase Diary surfaces.
+- Desktop Day Summary uses the Intervals-derived calorie/macro target.
+- Mobile Endurance bar shows target, remaining kcal, carb progress and workout fueling.
+- Legacy NutriTrace bottom calorie bar is hidden in Endurance mode so contradictory fixed/adaptive goals cannot appear.
+- Breakfast/Lunch/Dinner/etc. meal cards show the engine's kcal target range and the amount of workout-energy overlay.
+- Recovery meal timing can be surfaced directly on the relevant meal card.
 
-### Full FuelBase visual modernization
-- Added `src/styles/modern.css` as the FuelBase product layer above upstream NutriTrace primitives.
-- Modernized typography hierarchy, spacing, radii, surfaces, shadows, headers, cards, forms and buttons.
-- Reduced decorative gradients/glow; accent colour is primarily an interaction/status colour.
-- Reworked mobile navigation into a floating dock.
-- Rebranded browser/PWA/sidebar/offline surfaces as FuelBase.
-- Modernized shared Tabs, Sheet, Dialog, ActionSheet and Toast components.
-- Settings rows, segmented controls, search, navigation rail and Diary meal cards inherit the new design system globally.
+### UI/product layer
 
-Still to complete:
-- wire the Intervals-derived Endurance target into the legacy Diary calorie calculations themselves, not only the desktop and mobile FuelBase surfaces;
-- show meal target ranges on the meal cards;
-- visual QA at narrow phone, tablet, 1280px rail breakpoint and wide desktop once a frontend build/runtime is available.
+- FuelBase branding for browser/PWA/sidebar/offline surfaces.
+- Modernized global design system, navigation, Goals, tabs, dialogs, sheets, action sheets and toasts.
+- Modern Training & Fueling cards for desktop and mobile.
+- iOS Home Screen/PWA metadata for standalone operation.
 
-## Phase 5 — Tests and validation
-Engine/reconciliation tests cover or should cover at minimum:
-- rest day
-- <60 min easy workout
-- 90 min Z2
-- 90 min threshold
-- 2 h endurance ride
-- 4 h long ride
-- early-morning workout
-- midday workout
-- evening workout
-- two-a-day
-- completed replaces planned
-- fallback matching refuses implausible time gaps
-- missing calories
-- missing bike kJ
-- measured bike kJ preferred when available
-- next workout <8 h / next day / >24 h
-- extremely high training day
-- realistic meal floors
-- during carbs count inside total daily energy
-- previous-evening carbohydrate preparation
+### Personal web hosting
 
-Repository validation:
-- CI definition includes i18n check, Node tests and `npm run build`.
-- GitHub Actions have not executed in this fork yet.
-- The current execution environment does not contain the Svelte compiler and has no external npm/network access, so the modernized frontend still requires a real `npm ci && npm run build` before merge.
-- Keep PR #1 draft until that full build and a visual regression pass are green.
+- `npm run host:build`: i18n check + tests + production build + server dependencies + frontend bundle copy.
+- `npm run host:start`: runs the complete same-origin Node web app without Docker.
+- Optional `FUELBASE_USERNAME` / `FUELBASE_PASSWORD` secret-based account bootstrap creates the sole account before the public server starts.
+- Persistent SQLite and uploads paths can be mapped to a hosting volume with `DB_PATH` and `UPLOADS_PATH`.
+- Hosting instructions live in `docs/FUELBASE_HOSTING.md`.
 
-## Scope guard
-Do not rebuild food logging, barcode scanning, recipes, or the whole NutriTrace data model. Do not make AI, wearable TDEE, HRV/sleep adjustment, adaptive expenditure or native-mobile-specific functionality part of the first FuelBase endurance release. UI modernization should reuse the mature flows rather than replacing their business logic.
+## Validation matrix
+
+The automated suite should cover at minimum:
+
+1. rest day;
+2. short easy workout;
+3. 90 min endurance;
+4. 90 min quality;
+5. 2 h endurance bike at 60 g/h default;
+6. 4 h long ride at 90 g/h default;
+7. explicit Intervals carb-rate override;
+8. completed activity inheriting planned carb-rate target;
+9. morning workout;
+10. evening workout with energy concentrated around pre/recovery;
+11. two sessions/day;
+12. completed replacing planned/no double-counting;
+13. missing calories;
+14. missing joules;
+15. next important workout <8 h;
+16. next workout tomorrow morning;
+17. normal meals retaining realistic floors;
+18. intra-workout fueling remaining inside daily total;
+19. custom diary meal-slot alignment;
+20. production frontend build.
+
+## Remaining before merge
+
+- Execute the latest full test suite and `npm run build` in an environment with dependencies available.
+- Perform browser + iPhone visual regression on the real production build.
+- Test the Intervals integration against real planned/completed data and confirm field shapes, particularly workout `carbs_per_hour`.
+- Decide after real-use testing whether Intervals response caching/persistence is worth adding.
+
+Do not merge the draft PR until the production build and primary mobile/desktop flows are verified.
