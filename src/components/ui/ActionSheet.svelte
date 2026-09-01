@@ -1,5 +1,5 @@
 <script>
-  import { fly, fade, scale } from 'svelte/transition';
+  import { fly, fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { createEventDispatcher } from 'svelte';
   import { _ } from 'svelte-i18n';
