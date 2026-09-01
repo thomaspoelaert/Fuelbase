@@ -64,15 +64,56 @@ export function estimateWorkoutEnergy(workout = {}, bodyWeightKg = 75) {
   return { kcal: Math.round(bodyWeightKg * kcalPerKgHour * (durationMin / 60)), source: 'duration_intensity' };
 }
 
+function explicitDuringRate(workout = {}) {
+  const raw = workout.carbsPerHour
+    ?? workout.carbs_per_hour
+    ?? workout.targetCarbsPerHour
+    ?? workout.target_carbs_per_hour;
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n > 150) return null;
+  return Math.round(n);
+}
+
+function defaultDuringRate(c) {
+  const isBike = c.sport.includes('ride') || c.sport.includes('bike') || c.sport.includes('cycle');
+  const isRun = c.sport.includes('run');
+  const isSwim = c.sport.includes('swim');
+
+  if (isSwim) return 0;
+
+  // Cycling is deliberately performance-forward. A normal ~2 h endurance
+  // ride lands at 60 g/h and long rides at 90 g/h; an explicit Intervals
+  // carbs_per_hour target always overrides these defaults.
+  if (isBike) {
+    if (c.durationMin < 60) return c.hard ? 30 : 0;
+    if (c.durationMin < 90) return c.hard ? 60 : 45;
+    if (c.durationMin < 150) return c.hard ? 75 : 60;
+    return 90;
+  }
+
+  // Running is kept somewhat lower than cycling because gut tolerance and
+  // practical intake are usually more limiting while still prioritising CHO
+  // for long and quality sessions.
+  if (isRun) {
+    if (c.durationMin < 60) return c.hard ? 30 : 0;
+    if (c.durationMin < 90) return c.hard ? 45 : 30;
+    if (c.durationMin < 150) return c.hard ? 60 : 45;
+    return c.hard ? 75 : 60;
+  }
+
+  if (c.durationMin < 60) return c.hard ? 30 : 0;
+  if (c.durationMin < 90) return c.hard ? 45 : 30;
+  if (c.durationMin < 150) return c.hard ? 60 : 45;
+  return c.hard ? 75 : 60;
+}
+
 export function fuelingForWorkout(workout = {}, bodyWeightKg = 75, hoursToNextImportant = Infinity) {
   const c = classifyWorkout(workout);
   const h = c.durationMin / 60;
-  let duringRate = 0;
-  if (c.durationMin < 60 && !c.hard) duringRate = 0;
-  else if (c.durationMin < 90) duringRate = c.hard ? 45 : 30;
-  else if (c.durationMin < 150) duringRate = c.hard ? 70 : 55;
-  else duringRate = c.hard ? 90 : 75;
-  if (c.sport.includes('swim')) duringRate = 0;
+  const explicitRate = explicitDuringRate(workout);
+  const duringRate = explicitRate ?? defaultDuringRate(c);
+  const duringRateSource = explicitRate != null ? 'workout_target' : 'default';
 
   let preCarbs = 0;
   if (c.durationMin >= 60 || c.hard) {
@@ -88,7 +129,7 @@ export function fuelingForWorkout(workout = {}, bodyWeightKg = 75, hoursToNextIm
 
   const postCarbs = round5(bodyWeightKg * postCarbPerKg);
   const postProtein = round5(clamp(bodyWeightKg * 0.35, 25, 40));
-  return { preCarbs, duringRate, duringCarbs, postCarbs, postProtein, recoveryUrgency };
+  return { preCarbs, duringRate, duringCarbs, duringRateSource, postCarbs, postProtein, recoveryUrgency };
 }
 
 export function eveningPrepForNextWorkout(nextWorkout, bodyWeightKg = 75, currentDate = null) {
@@ -146,6 +187,52 @@ function closestAfter(plan, hour, maxGapHours = 3) {
   return rows[0]?.m || null;
 }
 
+function addMealEnergy(meal, kcal) {
+  const amount = Math.max(0, Number(kcal) || 0);
+  if (!meal || amount <= 0) return 0;
+  meal.targetKcal += amount;
+  meal.workoutOverlayKcal += amount;
+  return amount;
+}
+
+function recoveryMeal(plan, endHour) {
+  const after = closestAfter(plan, endHour, 4);
+  if (after) return after;
+  // An evening workout can overlap the user's normal dinner time. In that
+  // case dinner becomes the recovery meal rather than creating a fake extra
+  // meal, and its suggested timing is shifted to shortly after the session.
+  const dinner = [...plan].filter(m => /dinner|avond/i.test(m.label)).sort((a, b) => b.hour - a.hour)[0];
+  if (dinner && endHour <= 22 && dinner.hour >= endHour - 1.5) {
+    dinner.timingAdjusted = true;
+    dinner.suggestedHour = Math.min(22, endHour + 0.5);
+    return dinner;
+  }
+  return null;
+}
+
+function allocateResidualNearWorkout(plan, startHour, endHour, kcal) {
+  let remaining = Math.max(0, Number(kcal) || 0);
+  if (remaining <= 0) return 0;
+
+  const before = closestBefore(plan, startHour, 4);
+  const after = recoveryMeal(plan, endHour);
+  let allocated = 0;
+
+  if (after && before && after !== before) {
+    const afterShare = remaining * 0.7;
+    allocated += addMealEnergy(after, afterShare);
+    allocated += addMealEnergy(before, remaining - afterShare);
+    return allocated;
+  }
+  if (after) return addMealEnergy(after, remaining);
+  if (before) return addMealEnergy(before, remaining);
+
+  const fallback = plan.find(m => /dinner|avond/i.test(m.label))
+    || plan.find(m => /lunch|middag/i.test(m.label))
+    || plan[plan.length - 1];
+  return addMealEnergy(fallback, remaining);
+}
+
 export function allocateMeals({ baseCalories, meals, workouts, dailyTargetKcal, eveningPrep = null }) {
   const normalized = normalizeMealSlots(meals);
   const plan = normalized.map(m => {
@@ -154,12 +241,16 @@ export function allocateMeals({ baseCalories, meals, workouts, dailyTargetKcal, 
     return { ...m, baseCenterKcal: center, targetKcal: center, floorKcal: floor, workoutOverlayKcal: 0, timingAdjusted: false };
   });
 
-  let unallocatedTrainingKcal = Math.max(0, dailyTargetKcal - baseCalories);
   const standaloneFueling = [];
   const sortedWorkouts = [...(workouts || [])].sort((a, b) => Number(a.startHour ?? 12) - Number(b.startHour ?? 12));
 
+  // Every workout gets its own exercise-energy budget. That budget is placed
+  // in this order: during -> pre -> recovery -> nearest normal meals. This
+  // keeps most of the added training calories around the workout while the
+  // original base calories still preserve realistic breakfast/lunch/dinner.
   for (const w of sortedWorkouts) {
     const energy = Math.max(0, Number(w.energyKcal || 0));
+    let workoutBudget = energy;
     const fueling = w.fueling || {};
     const startHour = Number.isFinite(Number(w.startHour)) ? Number(w.startHour) : 12;
     const durationHours = Number(w.durationMin || 0) / 60;
@@ -167,42 +258,46 @@ export function allocateMeals({ baseCalories, meals, workouts, dailyTargetKcal, 
     const preKcal = Number(fueling.preCarbs || 0) * KCAL_PER_G_CARB;
     const duringKcal = Number(fueling.duringCarbs || 0) * KCAL_PER_G_CARB;
     const postKcal = Number(fueling.postCarbs || 0) * KCAL_PER_G_CARB + Number(fueling.postProtein || 0) * KCAL_PER_G_PROTEIN;
+    const workoutId = w.sourceId || w.activityId || w.eventId || null;
 
-    const duringAllocated = Math.min(energy, duringKcal, unallocatedTrainingKcal);
+    const duringAllocated = Math.min(workoutBudget, duringKcal);
     w.duringFuelKcal = duringAllocated;
     if (duringAllocated > 0) {
-      standaloneFueling.push({ workoutId: w.sourceId || w.activityId || w.eventId || null, type: 'during', kcal: Math.round(duringAllocated), carbs: Number(fueling.duringCarbs || 0), label: 'During workout' });
-      unallocatedTrainingKcal -= duringAllocated;
+      standaloneFueling.push({ workoutId, type: 'during', kcal: Math.round(duringAllocated), carbs: Number(fueling.duringCarbs || 0), label: 'During workout' });
+      workoutBudget -= duringAllocated;
     }
 
     const before = closestBefore(plan, startHour, 3);
-    const after = closestAfter(plan, endHour, 3);
-    if (preKcal > 0) {
-      const add = Math.min(preKcal, unallocatedTrainingKcal);
-      if (before) { before.targetKcal += add; before.workoutOverlayKcal += add; }
-      else if (add > 0) standaloneFueling.push({ workoutId: w.sourceId || w.activityId || w.eventId || null, type: 'pre', kcal: Math.round(add), carbs: Number(fueling.preCarbs || 0), label: 'Pre-workout' });
-      unallocatedTrainingKcal -= add;
+    if (preKcal > 0 && workoutBudget > 0) {
+      const add = Math.min(preKcal, workoutBudget);
+      if (before) addMealEnergy(before, add);
+      else standaloneFueling.push({ workoutId, type: 'pre', kcal: Math.round(add), carbs: Number(fueling.preCarbs || 0), label: 'Pre-workout' });
+      workoutBudget -= add;
     }
 
-    if (postKcal > 0) {
-      const add = Math.min(postKcal, unallocatedTrainingKcal);
-      let receiver = after;
-      if (!receiver && endHour <= 22) {
-        const dinner = [...plan].filter(m => /dinner|avond/i.test(m.label)).sort((a, b) => b.hour - a.hour)[0];
-        if (dinner) { receiver = dinner; dinner.timingAdjusted = true; dinner.suggestedHour = Math.min(22, endHour + 0.5); }
-      }
-      if (receiver) { receiver.targetKcal += add; receiver.workoutOverlayKcal += add; }
-      else if (add > 0) standaloneFueling.push({ workoutId: w.sourceId || w.activityId || w.eventId || null, type: 'post', kcal: Math.round(add), carbs: Number(fueling.postCarbs || 0), protein: Number(fueling.postProtein || 0), label: 'Recovery' });
-      unallocatedTrainingKcal -= add;
+    if (postKcal > 0 && workoutBudget > 0) {
+      const add = Math.min(postKcal, workoutBudget);
+      const receiver = recoveryMeal(plan, endHour);
+      if (receiver) addMealEnergy(receiver, add);
+      else standaloneFueling.push({ workoutId, type: 'post', kcal: Math.round(add), carbs: Number(fueling.postCarbs || 0), protein: Number(fueling.postProtein || 0), label: 'Recovery' });
+      workoutBudget -= add;
+    }
+
+    if (workoutBudget > 0.5) {
+      allocateResidualNearWorkout(plan, startHour, endHour, workoutBudget);
+      workoutBudget = 0;
     }
   }
 
-  const preferred = plan.filter(m => /lunch|dinner|avond|middag/i.test(m.label));
-  const receivers = preferred.length ? preferred : plan;
-  for (let i = 0; unallocatedTrainingKcal > 0.5 && receivers.length; i++) {
-    const m = receivers[i % receivers.length];
-    const add = Math.min(unallocatedTrainingKcal, 150);
-    m.targetKcal += add; m.workoutOverlayKcal += add; unallocatedTrainingKcal -= add;
+  // Numerical guard only: normal workout energy should have been allocated
+  // completely above. If future workout types produce a rounding residue,
+  // keep total meal targets consistent with the day target.
+  const allocatedOverlay = plan.reduce((s, m) => s + m.workoutOverlayKcal, 0)
+    + standaloneFueling.reduce((s, x) => s + Number(x.kcal || 0), 0);
+  let residue = Math.max(0, (dailyTargetKcal - baseCalories) - allocatedOverlay);
+  if (residue > 0.5) {
+    const fallback = plan.find(m => /dinner|avond/i.test(m.label)) || plan[plan.length - 1];
+    addMealEnergy(fallback, residue);
   }
 
   let eveningShiftKcal = 0;
@@ -215,14 +310,26 @@ export function allocateMeals({ baseCalories, meals, workouts, dailyTargetKcal, 
         if (wanted <= 0.5) break;
         const room = Math.max(0, donor.targetKcal - donor.floorKcal);
         const moved = Math.min(room, wanted);
-        donor.targetKcal -= moved; dinner.targetKcal += moved; wanted -= moved; eveningShiftKcal += moved;
+        donor.targetKcal -= moved;
+        dinner.targetKcal += moved;
+        wanted -= moved;
+        eveningShiftKcal += moved;
       }
     }
   }
 
   const mealTargets = plan.map(m => {
     const center = Math.max(m.floorKcal, m.targetKcal);
-    return { key: m.key, label: m.label, centerKcal: Math.round(center), minKcal: Math.round(Math.max(m.floorKcal, center * 0.88)), maxKcal: Math.round(center * 1.12), workoutOverlayKcal: Math.round(m.workoutOverlayKcal), timingAdjusted: !!m.timingAdjusted, suggestedHour: m.suggestedHour ?? null };
+    return {
+      key: m.key,
+      label: m.label,
+      centerKcal: Math.round(center),
+      minKcal: Math.round(Math.max(m.floorKcal, center * 0.88)),
+      maxKcal: Math.round(center * 1.12),
+      workoutOverlayKcal: Math.round(m.workoutOverlayKcal),
+      timingAdjusted: !!m.timingAdjusted,
+      suggestedHour: m.suggestedHour ?? null,
+    };
   });
   return { mealTargets, standaloneFueling, eveningShiftKcal: Math.round(eveningShiftKcal) };
 }
