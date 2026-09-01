@@ -16,13 +16,19 @@ test('rest day keeps base calories and realistic meals', () => {
 });
 
 test('completed activity calories are authoritative', () => {
-  const e = estimateWorkoutEnergy({ sport: 'Ride', calories: 1050, durationMin: 120 }, 80);
+  const e = estimateWorkoutEnergy({ sport: 'Run', calories: 1050, durationMin: 120 }, 80);
   assert.deepEqual(e, { kcal: 1050, source: 'activity_calories' });
 });
 
 test('bike kJ fallback maps approximately 1:1 to kcal', () => {
   const e = estimateWorkoutEnergy({ sport: 'Ride', joules: 1000000, durationMin: 90 }, 80);
   assert.equal(e.kcal, 1000);
+  assert.equal(e.source, 'bike_kj');
+});
+
+test('bike mechanical kJ is preferred over generic activity calories', () => {
+  const e = estimateWorkoutEnergy({ sport: 'Ride', joules: 950000, calories: 1200, durationMin: 90 }, 80);
+  assert.equal(e.kcal, 950);
   assert.equal(e.source, 'bike_kj');
 });
 
@@ -76,14 +82,7 @@ test('during workout carbs stay inside total daily energy', () => {
     baseCalories: 2400,
     bodyWeightKg: 80,
     date: '2026-09-01',
-    workouts: [{
-      sourceId: 'ride-1',
-      sport: 'Ride',
-      durationMin: 240,
-      calories: 2200,
-      intensity: 80,
-      startTime: '2026-09-01T08:00:00',
-    }],
+    workouts: [{ sourceId: 'ride-1', sport: 'Ride', durationMin: 240, calories: 2200, intensity: 80, startTime: '2026-09-01T08:00:00' }],
   });
   assert.equal(plan.calories.target, 4600);
   assert.equal(plan.workouts[0].fueling.duringCarbs, 360);
@@ -92,36 +91,18 @@ test('during workout carbs stay inside total daily energy', () => {
 });
 
 test('early next-day quality session creates evening carb prep without adding calories', () => {
-  const nextWorkout = {
-    sport: 'Ride',
-    name: 'Sweet Spot',
-    durationMin: 105,
-    intensity: 80,
-    startTime: '2026-09-02T06:00:00',
-  };
+  const nextWorkout = { sport: 'Ride', name: 'Sweet Spot', durationMin: 105, intensity: 80, startTime: '2026-09-02T06:00:00' };
   const prep = eveningPrepForNextWorkout(nextWorkout, 80, '2026-09-01');
   assert.ok(prep);
   assert.ok(prep.carbs >= 50);
-
-  const plan = calculateEnduranceDay({
-    baseCalories: 2400,
-    bodyWeightKg: 80,
-    date: '2026-09-01',
-    nextImportantWorkout: nextWorkout,
-  });
+  const plan = calculateEnduranceDay({ baseCalories: 2400, bodyWeightKg: 80, date: '2026-09-01', nextImportantWorkout: nextWorkout });
   assert.equal(plan.calories.target, 2400);
   assert.ok(plan.eveningPrep);
   assert.ok(plan.eveningPrep.shiftedKcalToDinner > 0);
 });
 
 test('late easy next-day session does not trigger evening prep', () => {
-  const prep = eveningPrepForNextWorkout({
-    sport: 'Run',
-    name: 'Easy',
-    durationMin: 60,
-    intensity: 50,
-    startTime: '2026-09-02T18:00:00',
-  }, 80, '2026-09-01');
+  const prep = eveningPrepForNextWorkout({ sport: 'Run', name: 'Easy', durationMin: 60, intensity: 50, startTime: '2026-09-02T18:00:00' }, 80, '2026-09-01');
   assert.equal(prep, null);
 });
 
@@ -130,15 +111,7 @@ test('early workout can use a standalone pre-fuel bucket while keeping breakfast
     baseCalories: 2400,
     bodyWeightKg: 80,
     date: '2026-09-01',
-    workouts: [{
-      sourceId: 'run-1',
-      sport: 'Run',
-      name: 'Threshold',
-      durationMin: 75,
-      calories: 900,
-      intensity: 85,
-      startTime: '2026-09-01T05:30:00',
-    }],
+    workouts: [{ sourceId: 'run-1', sport: 'Run', name: 'Threshold', durationMin: 75, calories: 900, intensity: 85, startTime: '2026-09-01T05:30:00' }],
   });
   assert.ok(plan.standaloneFueling.some(x => x.type === 'pre'));
   const breakfast = plan.mealTargets.find(m => /breakfast/i.test(m.label));
