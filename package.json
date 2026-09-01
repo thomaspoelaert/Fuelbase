@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "host:build": "npm run i18n:check && npm test && npm run build && npm --prefix server ci && node scripts/prepare-host.mjs",
-    "host:start": "node server/index.js",
+    "host:start": "node --import ./server/lib/fuelbase-bootstrap-entry.js server/index.js",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "android:build": "npm run build && npx cap sync android",
     "android:run": "npx cap run android",
