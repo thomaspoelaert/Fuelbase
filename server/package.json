@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js"
+    "start": "node --import ./lib/fuelbase-bootstrap-entry.js index.js",
+    "dev": "node --watch --import ./lib/fuelbase-bootstrap-entry.js index.js"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.4.0-r.1",

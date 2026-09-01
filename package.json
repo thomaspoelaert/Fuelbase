@@ -7,13 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "host:build": "npm run i18n:check && npm test && npm run build && npm --prefix server ci && node scripts/prepare-host.mjs",
+    "host:start": "node --import ./server/lib/fuelbase-bootstrap-entry.js server/index.js",
     "android": "npm run build && npx cap sync android && npx cap open android",
     "android:build": "npm run build && npx cap sync android",
     "android:run": "npx cap run android",
     "cap:sync": "npm run build && npx cap sync",
     "cap:add:android": "npx cap add android",
     "i18n:check": "node scripts/i18n-check.cjs",
-    "test": "node --test scripts/*.test.js",
+    "test": "node --test scripts/*.test.js && node --check scripts/intervals-live-smoke.mjs",
+    "smoke:intervals": "node scripts/intervals-live-smoke.mjs",
     "postinstall": "node scripts/postinstall.cjs"
   },
   "dependencies": {

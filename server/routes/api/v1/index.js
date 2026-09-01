@@ -10,11 +10,17 @@ import foodsRouter from './foods.js';
 import workoutsRouter from './workouts.js';
 import activityRouter from './activity.js';
 import bodyMeasurementsRouter from './body-measurements.js';
+import intervalsRouter from '../../intervals.js';
 
 const router = Router();
 
-// Every /api/v1 endpoint requires a valid Bearer token. Scope-gating is
-// applied per-route inside each sub-router via requireScope().
+// FuelBase first-party Intervals.icu integration. This uses the normal app
+// session auth inside intervalsRouter and deliberately mounts before the
+// federation Bearer-token middleware below.
+router.use('/intervals', intervalsRouter);
+
+// Every federation /api/v1 endpoint requires a valid Bearer token. Scope-gating
+// is applied per-route inside each sub-router via requireScope().
 router.use(bearerAuth);
 
 router.use('/me', meRouter);

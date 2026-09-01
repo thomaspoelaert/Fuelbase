@@ -17,19 +17,12 @@
   let recoveryDone  = false;
   let recoveryToken = '';
 
-  // OIDC providers + password-login flag are returned by /api/auth/status.
-  // Native (Capacitor server-mode) routes the auth flow through
-  // @capacitor/browser; the IdP redirects back via a nutritrace://oidc-callback
-  // deep link which App.svelte handles. Native local mode skips OIDC entirely
-  // since there's no server to talk to.
   let oidcProviders = [];
   let passwordLoginEnabled = true;
-  // Biometric sign-in (Android server-mode only). Ready when hardware supports
-  // it AND the user has previously logged in with biometric enabled (so a
-  // saved JWT exists in Preferences ready to be unlocked).
   let _biometricReady = false;
+
   onMount(async () => {
-    if (isNative && !getServerUrl()) return; // standalone — skip
+    if (isNative && !getServerUrl()) return;
     try {
       const r = await fetch(apiUrl('/api/auth/status'), { credentials: 'include' });
       if (r.ok) {
@@ -40,7 +33,6 @@
         }
       }
     } catch {}
-    // Probe biometric availability + saved-token presence concurrently
     if (isNative && getServerUrl()) {
       try {
         const bio = await import('../lib/biometric.js');
@@ -58,17 +50,8 @@
       const saved = await bio.readSavedToken();
       if (!saved) { showError($_('login.biometric.no_saved')); return; }
       setAuthToken(saved);
-      // Bring the auth state up by hitting /me — also refreshes CSRF token.
       await loadAuthState();
       const cached = JSON.parse(localStorage.getItem('nt:cachedUser') || 'null');
-      // If /me rejected the saved token (expired, JWT_SECRET rotated,
-      // backup restored, server URL changed), loadAuthState cleared the
-      // cached user. Without an explicit check the user would briefly
-      // land on '/' and bounce right back to Login — looks like
-      // biometric "did nothing." Surface the error + wipe the stale
-      // stash so the next tap doesn't repeat the loop. Confirmed by
-      // logcat 2026-06-09: token in biometric stash expired exactly at
-      // the 30-day mark while user kept tapping biometric.
       if (!cached) {
         showError($_('login.biometric.expired'));
         await bio.clearSavedToken();
@@ -86,9 +69,6 @@
   async function startOidc(providerId) {
     const ret = encodeURIComponent(window.location.hash || '#/');
     if (isNative) {
-      // Capacitor: open in @capacitor/browser. The mobile=1 flag tells
-      // the server to redirect via the nutritrace://oidc-callback deep
-      // link instead of setting an HttpOnly cookie + SPA hash redirect.
       const { Browser } = await import('@capacitor/browser');
       await Browser.open({
         url: apiUrl(`/api/auth/oidc/login/${providerId}?mobile=1&return=${ret}`),
@@ -111,10 +91,7 @@
       });
       const data = await res.json();
       if (!res.ok) { showError(data.error || $_('login.errors.failed')); return; }
-      // Store auth token for native server mode
       if (isNative && data.token) setAuthToken(data.token);
-      // If biometric login is enabled, stash the JWT so the next launch
-      // can unlock with fingerprint/face instead of typing the password.
       if (isNative && data.token) {
         try {
           const { biometricLoginEnabled } = await import('../stores/settings.js');
@@ -123,15 +100,10 @@
           if (get(biometricLoginEnabled)) await saveTokenForBiometric(data.token);
         } catch {}
       }
-      // Cache user for offline fallback
       localStorage.setItem('wl:userId', String(data.user.id));
       localStorage.setItem('nt:cachedUser', JSON.stringify(data.user));
       localStorage.setItem('nt:cachedUserMgmt', '1');
       currentUser.set(data.user);
-      // Refresh CSRF token from /api/auth/me before any state-changing request
-      // can fire (otherwise reactive settings saves would use a stale csrf from
-      // a previous session and 403). loadAuthState() handles the fetch and
-      // populates localStorage.nt:csrf as a side effect.
       await loadAuthState();
       await loadServerSettings();
       push('/');
@@ -170,8 +142,8 @@
 <div class="login-page">
   <div class="login-card card">
     <div class="login-logo">
-      <img src={iconUrl('/icons/logo.png')} alt="NutriTrace" class="logo-img" />
-      <h1 class="login-title">NutriTrace</h1>
+      <img src={iconUrl('/icons/logo.png')} alt="FuelBase" class="logo-img" />
+      <h1 class="login-title">FuelBase</h1>
       <p class="text-3 text-sm">{$_('login.subtitle')}</p>
     </div>
 
@@ -220,35 +192,29 @@
             <span>{$_('login.biometric.sign_in_button')}</span>
           </button>
         {/if}
-
-        <div style="text-align:center">
-          <button class="recovery-toggle" on:click={() => push('/forgot-password')}>{$_('login.forgot_password')}</button>
-        </div>
-      {:else if !oidcProviders.length}
-        <p class="text-3 text-sm" style="text-align:center">{$_('login.no_signin_methods')}</p>
       {/if}
 
-      <!-- Locked out recovery -->
-      <button class="recovery-toggle" on:click={() => showRecovery = !showRecovery}>
-        {showRecovery ? $_('common.hide') : $_('login.locked_out')}
+      <button class="recovery-link" on:click={() => showRecovery = !showRecovery}>
+        <span class="material-symbols-rounded">emergency</span>
+        Emergency recovery
       </button>
 
       {#if showRecovery}
-        <div class="recovery-box" transition:slide={{ duration: 180 }}>
-          <span class="material-symbols-rounded" style="font-size:20px;color:var(--warning,#f59e0b)">warning</span>
-          <p>{@html $_('login.recovery.explainer')}</p>
-          <p style="margin:0">{$_('login.recovery.token_prompt')}</p>
-          <input class="input" type="password" bind:value={recoveryToken} placeholder={$_('login.recovery.token_placeholder')} />
-          <button class="btn btn-secondary" style="width:100%;border-color:var(--danger);color:var(--danger)"
+        <div class="recovery-box" transition:slide>
+          <p class="text-3 text-xs">Use the server recovery token if you are locked out of your account.</p>
+          <input class="input" type="text" bind:value={recoveryToken}
+            placeholder={$_('login.recovery.token_placeholder')} />
+          <button class="btn btn-danger w-full" class:loading={recovering}
             on:click={recover} disabled={recovering || !recoveryToken.trim()}>
-            {recovering ? $_('login.recovery.disabling') : $_('login.recovery.action')}
+            {recovering ? 'Recovering…' : 'Recover access'}
           </button>
         </div>
       {/if}
     {:else}
-      <div style="text-align:center;padding:8px 0">
-        <span class="material-symbols-rounded" style="font-size:48px;color:var(--accent)">check_circle</span>
-        <p style="margin-top:8px;color:var(--text-2)">{@html $_('login.recovery.done')}</p>
+      <div class="recovery-done">
+        <span class="material-symbols-rounded success-icon">check_circle</span>
+        <h3>Recovery complete</h3>
+        <p class="text-3 text-sm">You can continue with the recovered server state.</p>
       </div>
     {/if}
   </div>
@@ -261,69 +227,40 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: var(--bg);
+    background:
+      radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 34%),
+      var(--bg);
   }
   .login-card {
-    width: 100%;
-    max-width: 360px;
-    padding: 32px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    width: 100%; max-width: 400px; padding: 32px;
+    display: flex; flex-direction: column; gap: 18px;
+    border-radius: 24px;
   }
-  .login-logo {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    text-align: center;
+  .login-logo { text-align: center; margin-bottom: 4px; }
+  .logo-img { width: 62px; height: 62px; object-fit: contain; margin-bottom: 12px; }
+  .login-title { font-size: 28px; font-weight: 700; margin-bottom: 4px; letter-spacing: -.035em; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; font-weight: 650; color: var(--text-2); }
+  .w-full { width: 100%; }
+  .loading { opacity: .65; pointer-events: none; }
+  .sso-row { display:flex; flex-direction:column; gap:8px; }
+  .sso-btn { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; }
+  .sso-logo { width:20px; height:20px; object-fit:contain; border-radius:3px; }
+  .sso-icon { font-size:20px; }
+  .sso-divider { display:flex; align-items:center; gap:10px; margin:2px 0; color:var(--text-3); font-size:11px; }
+  .sso-divider::before,.sso-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .recovery-link {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: none; border: none; color: var(--text-3); font-size: 12px;
+    cursor: pointer; padding: 4px; margin-top: 2px;
   }
-  .logo-img {
-    width: 72px;
-    height: 72px;
-    border-radius: 16px;
-    object-fit: cover;
-  }
-  .login-title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin: 0;
-  }
-  .recovery-toggle {
-    background: none;
-    border: none;
-    color: var(--text-3);
-    font-size: 13px;
-    cursor: pointer;
-    text-align: center;
-    padding: 0;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .recovery-toggle:hover { color: var(--text-2); }
+  .recovery-link:hover { color: var(--text-2); }
+  .recovery-link .material-symbols-rounded { font-size: 15px; }
   .recovery-box {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 16px; border: 1px solid var(--border); border-radius: 14px;
     background: var(--surface-2);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    font-size: 13px;
-    color: var(--text-2);
-    line-height: 1.5;
   }
-  .sso-row { display: flex; flex-direction: column; gap: 8px; }
-  .sso-btn { display: flex; align-items: center; gap: 10px; justify-content: center; width: 100%; }
-  .sso-logo { width: 18px; height: 18px; object-fit: contain; }
-  .sso-icon { font-size: 18px; }
-  .sso-divider {
-    display: flex; align-items: center; gap: 12px;
-    color: var(--text-3); font-size: 12px;
-    margin: 4px 0;
-  }
-  .sso-divider::before, .sso-divider::after {
-    content: ''; flex: 1; height: 1px; background: var(--border);
-  }
+  .recovery-done { text-align: center; padding: 12px 0; }
+  .success-icon { font-size: 48px; color: var(--accent); margin-bottom: 8px; }
 </style>

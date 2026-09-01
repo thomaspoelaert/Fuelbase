@@ -32,22 +32,22 @@ COPY server/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 COPY server/ .
 COPY --from=build /app/dist ./dist
-# The MCP daily-totals tool reuses the shared Nutrition module that also
-# powers the Svelte frontend (source of truth for exploded-recipe / legacy
-# item summing). Its relative import climbs out of /app/lib/mcp/tools to
-# /src/lib/nutrition.js — mirror that path in the container so local dev
-# and Docker resolve the same file without a re-export shim.
+# Shared frontend modules are reused server-side. In the flattened runtime
+# image their relative imports resolve to /src/lib, so mirror each required
+# source-of-truth file there.
 COPY src/lib/nutrition.js /src/lib/nutrition.js
+COPY src/lib/endurance-nutrition.js /src/lib/endurance-nutrition.js
+COPY src/lib/fuelbase-planning.js /src/lib/fuelbase-planning.js
+COPY src/lib/fuelbase-starter-foods.js /src/lib/fuelbase-starter-foods.js
 # Also ship the root package.json so the server can read APP_VERSION from
 # it at runtime when TRACEAPPS_APP_VERSION isn't injected via ARG below.
-# Keeps versioning working even for builds that don't pass the build-arg.
 COPY --from=build /app/package.json ./package.json
 # Bake the app version into the image so the in-app updates checker can
 # report the running server version. CI can pass `--build-arg
-# APP_VERSION=$(node -p 'require("./package.json").version')`; falls
+# APP_VERSION=$(node -p 'require("./package.json').version')`; falls
 # back to reading /app/package.json at runtime.
 ARG APP_VERSION=""
 ENV TRACEAPPS_APP_VERSION=${APP_VERSION}
 EXPOSE 3001
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "index.js"]
+CMD ["node", "--import", "./lib/fuelbase-bootstrap-entry.js", "index.js"]

@@ -1,11 +1,16 @@
 name: Checks
 
-# Keep checks separate from image publishing so PR feedback stays fast.
+# The repo's other workflow (docker.yml) builds and publishes images; keeping
+# checks separate means a red check never blocks an image push and a slow
+# multi-arch build never delays PR feedback.
 on:
   workflow_dispatch:
   pull_request:
   push:
-    branches: [ main, dev ]
+    branches:
+      - main
+      - dev
+      - 'feature/**'
 
 jobs:
   checks:
@@ -14,10 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Current Capacitor tooling requires Node >=22. The production Docker
+      # runtime remains independently pinned/validated by its own image build.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install

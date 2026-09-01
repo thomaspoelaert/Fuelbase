@@ -7,10 +7,7 @@
 
   export let open   = false;
   export let title  = '';
-  export let height = 'auto';  // 'auto' | 'full' | '60vh' etc.
-  /** Render a floating close button pinned to the panel even when title is
-   *  empty. Useful for sheets that draw their own header/banner inside the
-   *  slot and need the X to stay visible while the content scrolls. */
+  export let height = 'auto';
   export let overlayClose = false;
 
   const dispatch = createEventDispatcher();
@@ -37,29 +34,28 @@
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div use:portal class="sheet-backdrop" on:click={onBackdropClick}
-    in:fade={{ duration: 200 }} out:fade={{ duration: 160 }}>
+    in:fade={{ duration: 180 }} out:fade={{ duration: 140 }}>
     <div
       class="sheet-panel"
       class:sheet-full={height === 'full'}
       style={height !== 'auto' && height !== 'full' ? `height:${height}` : ''}
-      in:fly={{ y: 80, duration: 280, easing: cubicOut }}
-      out:fly={{ y: 80, duration: 200 }}
+      in:fly={{ y: 48, duration: 240, easing: cubicOut }}
+      out:fly={{ y: 48, duration: 170 }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <!-- Handle bar -->
       <div class="sheet-handle"></div>
 
       {#if title}
         <div class="sheet-header">
           <h3 class="sheet-title">{title}</h3>
-          <button class="btn-icon" on:click={close} aria-label={$_('common.close')} title={$_('common.close')}>
+          <button class="sheet-close" on:click={close} aria-label={$_('common.close')} title={$_('common.close')}>
             <span class="material-symbols-rounded">close</span>
           </button>
         </div>
       {:else if overlayClose}
-        <button class="btn-icon sheet-overlay-close" on:click={close}
+        <button class="sheet-close sheet-overlay-close" on:click={close}
           aria-label={$_('common.close')} title={$_('common.close')}>
           <span class="material-symbols-rounded">close</span>
         </button>
@@ -74,74 +70,102 @@
 
 <style>
   .sheet-backdrop {
-    position: fixed; inset: 0;
-    background: var(--overlay);
-    backdrop-filter: var(--backdrop-blur);
-    -webkit-backdrop-filter: var(--backdrop-blur);
-    z-index: 100;
+    position: fixed;
+    inset: 0;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-  }
-  .sheet-panel {
-    width: 100%;
-    max-height: 90dvh;
-    background: var(--surface-1);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    border-top: 1px solid var(--border);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    padding-bottom: var(--safe-bottom);
-    position: relative;
+    z-index: 100;
+    background: var(--overlay);
+    backdrop-filter: blur(12px) saturate(110%);
+    -webkit-backdrop-filter: blur(12px) saturate(110%);
   }
 
-  /* Desktop / wide tablet — cap the panel so the sheet doesn't sprawl
-     across a 1920px viewport with empty side gutters. Mirrors the same
-     720px cap CookTrace uses on its Sheet for TraceApps brand cohesion.
-     Without this, two-column layouts inside sheets (like FoodDetailSheet)
-     balloon out and the 1:1 photo eats the right column. Mobile (<768px)
-     keeps the edge-to-edge bottom-sheet behavior, so no regression on
-     phone widths. */
-  @media (min-width: 768px) {
-    .sheet-panel {
-      width: min(720px, calc(100% - 48px));
-      max-height: min(85dvh, 800px);
-      margin-bottom: 24px;
-      border-radius: var(--radius-xl);
-      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
-    }
-    /* Drag handle is a touch affordance; on desktop it's noise. */
-    .sheet-handle { display: none; }
+  .sheet-panel {
+    width: 100%;
+    max-height: 91dvh;
+    padding-bottom: var(--safe-bottom);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface-1);
+    border: 1px solid var(--border-strong);
+    border-bottom: 0;
+    border-radius: 28px 28px 0 0;
+    box-shadow: var(--shadow-lg);
   }
+
+  .sheet-handle {
+    width: 34px;
+    height: 4px;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--border-strong);
+  }
+
+  .sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 17px 20px 11px;
+    flex-shrink: 0;
+  }
+
+  .sheet-title {
+    min-width: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.018em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet-close {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: var(--text-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .sheet-close:hover { color: var(--text-1); background: var(--surface-3); }
+  .sheet-close .material-symbols-rounded { font-size: 19px; }
+
   .sheet-overlay-close {
     position: absolute;
     top: 12px;
     right: 12px;
     z-index: 5;
-    color: var(--text-2);
   }
-  .sheet-full { height: 90dvh; }
-  .sheet-handle {
-    width: 36px; height: 4px;
-    background: var(--border-strong);
-    border-radius: var(--radius-full);
-    margin: 12px auto 0;
-    flex-shrink: 0;
-  }
-  .sheet-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px 12px;
-    flex-shrink: 0;
-  }
-  .sheet-title { font-size: 17px; font-weight: 600; }
+
   .sheet-body {
     flex: 1;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 0 20px 20px;
+    padding: 0 20px 22px;
   }
-  .sheet-body.no-title { padding-top: 16px; }
+  .sheet-body.no-title { padding-top: 18px; }
+  .sheet-full { height: 91dvh; }
+
+  @media (min-width: 768px) {
+    .sheet-backdrop { align-items: center; padding: 24px; }
+    .sheet-panel {
+      width: min(720px, 100%);
+      max-height: min(86dvh, 820px);
+      padding-bottom: 0;
+      border-bottom: 1px solid var(--border-strong);
+      border-radius: 28px;
+    }
+    .sheet-handle { display: none; }
+    .sheet-header { padding: 20px 22px 13px; }
+    .sheet-body { padding-inline: 22px; padding-bottom: 24px; }
+  }
 </style>

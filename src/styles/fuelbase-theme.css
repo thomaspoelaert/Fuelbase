@@ -1,0 +1,123 @@
+/* FuelBase product palette.
+   Quiet, low-saturation surfaces and a muted sage accent replace the
+   high-chroma fitness green. Loaded after the upstream token/theme files. */
+
+:root,
+[data-theme="dark"] {
+  --bg: #0B0C0E;
+  --surface-1: #141517;
+  --surface-2: #1C1D20;
+  --surface-3: #25272A;
+  --border: rgba(255,255,255,.075);
+  --border-strong: rgba(255,255,255,.14);
+  --text-1: #F3F3F5;
+  --text-2: rgba(243,243,245,.66);
+  --text-3: rgba(243,243,245,.42);
+  --accent: #94ADA4;
+  --accent-2: #758F86;
+  --accent-dim: rgba(148,173,164,.13);
+  --accent-text: #101312;
+  --success: #7DA792;
+  --info: #88A6BB;
+  --warning: #C8A66B;
+  --danger: #D27A75;
+  --macro-carbs: #7C9E92;
+  --macro-carbs-dim: rgba(124,158,146,.13);
+  --macro-protein: #8D8BAA;
+  --macro-protein-dim: rgba(141,139,170,.13);
+  --macro-fat: #B18C62;
+  --macro-fat-dim: rgba(177,140,98,.13);
+  --macro-calories: #8C969E;
+  --macro-calories-dim: rgba(140,150,158,.13);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.24);
+  --shadow-md: 0 8px 24px rgba(0,0,0,.25);
+  --shadow-lg: 0 18px 50px rgba(0,0,0,.32);
+  --shadow-glow: none;
+  --glass-surface: rgba(20,21,23,.9);
+  --theme-chrome: #0B0C0E;
+}
+
+[data-theme="light"] {
+  --bg: #F5F5F7;
+  --surface-1: #FFFFFF;
+  --surface-2: #F0F1F3;
+  --surface-3: #E8E9EC;
+  --border: rgba(17,19,21,.075);
+  --border-strong: rgba(17,19,21,.13);
+  --text-1: #17181A;
+  --text-2: rgba(23,24,26,.64);
+  --text-3: rgba(23,24,26,.42);
+  --accent: #627D73;
+  --accent-2: #4E6960;
+  --accent-dim: rgba(98,125,115,.105);
+  --accent-text: #FFFFFF;
+  --success: #4F7D68;
+  --info: #557B92;
+  --warning: #9B742E;
+  --danger: #A74D49;
+  --macro-carbs: #577B6E;
+  --macro-carbs-dim: rgba(87,123,110,.10);
+  --macro-protein: #6E6C8B;
+  --macro-protein-dim: rgba(110,108,139,.10);
+  --macro-fat: #8B6B49;
+  --macro-fat-dim: rgba(139,107,73,.10);
+  --macro-calories: #69747C;
+  --macro-calories-dim: rgba(105,116,124,.10);
+  --shadow-sm: 0 1px 2px rgba(16,24,32,.04), 0 1px 8px rgba(16,24,32,.025);
+  --shadow-md: 0 8px 26px rgba(16,24,32,.07);
+  --shadow-lg: 0 18px 48px rgba(16,24,32,.10);
+  --shadow-glow: none;
+  --glass-surface: rgba(255,255,255,.9);
+  --theme-chrome: #F5F5F7;
+}
+
+/* Keep the default/mint preference quiet too; explicit accent selection should
+   not bring the original neon mint back. */
+[data-accent="mint"],
+[data-theme="dark"][data-accent="mint"] {
+  --accent: #94ADA4;
+  --accent-2: #758F86;
+  --accent-dim: rgba(148,173,164,.13);
+  --accent-text: #101312;
+}
+[data-theme="light"][data-accent="mint"] {
+  --accent: #627D73;
+  --accent-2: #4E6960;
+  --accent-dim: rgba(98,125,115,.105);
+  --accent-text: #FFFFFF;
+}
+
+/* Replace the legacy raster mark everywhere the current app still renders it. */
+.brand-icon,
+.logo-img {
+  content: url('/icons/fuelbase-mark.svg');
+  filter: none !important;
+  border-radius: 14px !important;
+}
+
+/* Product copy should read like UI, not campaign artwork. */
+.brand-name {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--text-1) !important;
+  letter-spacing: -.025em !important;
+}
+
+/* Flatter, calmer Apple-like materials. */
+.card {
+  box-shadow: var(--shadow-sm) !important;
+  border-color: var(--border) !important;
+}
+
+.btn-primary {
+  box-shadow: none !important;
+}
+
+.login-page {
+  background: var(--bg) !important;
+}
+
+.login-card {
+  box-shadow: var(--shadow-md) !important;
+}

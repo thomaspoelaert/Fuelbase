@@ -1,0 +1,198 @@
+/* FuelBase Endurance mode — authoritative Diary surfaces.
+   The legacy NutriTrace bottom nutrition bar uses the fixed/adaptive goal
+   model and must not compete with the Intervals-driven FuelBase target. */
+html.fuelbase-endurance-active .diary-bottom-bar {
+  display: none !important;
+}
+
+/* Meal targets are attached as data attributes by endurance-ui-bridge.js.
+   Keep the normal meal card intact; the compact target chip now shows both
+   an energy range and practical carbohydrate/protein guidance. */
+html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name::after {
+  content: attr(data-fuelbase-target-label) " · " attr(data-fuelbase-guidance-label);
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+html.fuelbase-endurance-active .meal-group[data-fuelbase-workout-overlay="true"] .meal-name::after,
+html.fuelbase-endurance-active .meal-group[data-fuelbase-priority="recovery"] .meal-name::after {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+html.fuelbase-endurance-active .meal-group[data-fuelbase-timing-label] .meal-header {
+  position: relative;
+}
+
+html.fuelbase-endurance-active .meal-group[data-fuelbase-timing-label] .meal-header::before {
+  content: attr(data-fuelbase-timing-label);
+  position: absolute;
+  left: 52px;
+  bottom: -4px;
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 650;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Legacy /goals compatibility. That page predates FuelBase Endurance and only
+   understands Fixed/Dynamic/Adaptive. Hide its stale calorie mode/preview and
+   replace them with the live plan banner injected by endurance-ui-bridge.js. */
+.fuelbase-hidden-legacy {
+  display: none !important;
+}
+
+html.fuelbase-goals-endurance .goals-right-rail {
+  display: none !important;
+}
+
+.fuelbase-goals-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 18px;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-sm);
+}
+
+.fuelbase-goals-notice-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 13px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.fuelbase-goals-notice-icon .material-symbols-rounded { font-size: 21px; }
+.fuelbase-goals-notice-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fuelbase-goals-kicker { color: var(--accent); font-size: 9px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.fuelbase-goals-title { color: var(--text-1); font-size: 15px; letter-spacing: -.015em; }
+.fuelbase-goals-meta { color: var(--text-3); font-size: 10px; line-height: 1.4; }
+.fuelbase-goals-settings { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.fuelbase-goals-settings .material-symbols-rounded { font-size: 15px; }
+
+/* Persistent Lose / Maintain / Gain control inside Endurance Settings. It is
+   injected into the existing Daily foundation card so the upstream Settings
+   component can stay easy to merge while the selection still writes directly
+   to the server-side FuelBase config. */
+.fuelbase-settings-goal-intent {
+  margin: 16px 0 2px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface-1));
+}
+
+.fuelbase-intent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.fuelbase-intent-head > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fuelbase-intent-kicker { color: var(--text-3); font-size: 9px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+.fuelbase-intent-head strong { font-size: 12px; }
+.fuelbase-intent-protected { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 9px; font-weight: 650; white-space: nowrap; }
+.fuelbase-intent-protected .material-symbols-rounded { font-size: 13px; }
+
+.fuelbase-intent-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.fuelbase-intent-option {
+  min-width: 0;
+  padding: 9px 7px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  transition: border-color var(--dur-fast), background var(--dur-fast), transform var(--dur-fast);
+}
+
+.fuelbase-intent-option:hover:not(:disabled) { border-color: var(--border-strong); }
+.fuelbase-intent-option:active:not(:disabled) { transform: scale(.985); }
+.fuelbase-intent-option strong { color: var(--text-1); font-size: 11px; }
+.fuelbase-intent-option span { color: var(--text-3); font-size: 9px; }
+.fuelbase-intent-option.active { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-dim); }
+.fuelbase-intent-option.active strong { color: var(--accent); }
+.fuelbase-intent-option:disabled { opacity: .6; cursor: wait; }
+.fuelbase-intent-summary { display: block; margin-top: 8px; color: var(--text-3); font-size: 9.5px; line-height: 1.4; }
+
+@media (min-width: 1280px) {
+  html.fuelbase-goals-endurance:not(.force-mobile-layout) .goals-body {
+    grid-template-columns: 260px minmax(0, 1fr) !important;
+  }
+}
+
+/* The FuelBase mobile endurance bar replaces the hidden legacy bar. Give
+   scrollable pages enough room so the last meal/action remains reachable. */
+@media (max-width: 1279px) {
+  html.fuelbase-endurance-active .page-transition {
+    padding-bottom: calc(158px + var(--safe-bottom)) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  html.fuelbase-endurance-active .meal-group[data-fuelbase-target-label] .meal-name::after {
+    font-size: 8.5px;
+    padding-inline: 7px;
+    white-space: normal;
+  }
+
+  html.fuelbase-endurance-active .meal-group[data-fuelbase-timing-label] .meal-header::before {
+    left: 44px;
+  }
+
+  .fuelbase-goals-notice {
+    align-items: flex-start;
+    padding: 12px;
+  }
+  .fuelbase-goals-notice-icon { width: 34px; height: 34px; flex-basis: 34px; }
+  .fuelbase-goals-settings { display: none; }
+  .fuelbase-goals-title { font-size: 13px; }
+  .fuelbase-goals-meta { font-size: 9px; }
+
+  .fuelbase-intent-head { align-items: flex-start; }
+  .fuelbase-intent-protected { white-space: normal; justify-content: flex-end; text-align: right; }
+  .fuelbase-intent-option { padding: 8px 6px; }
+  .fuelbase-intent-option strong { font-size: 10px; }
+  .fuelbase-intent-option span { font-size: 8px; }
+}
