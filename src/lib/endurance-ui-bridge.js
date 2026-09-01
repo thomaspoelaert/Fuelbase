@@ -1,5 +1,6 @@
 import { calorieGoalMode } from '../stores/settings.js';
 import { currentDate } from '../stores/diary.js';
+import { IntervalsClient } from './intervals-client.js';
 import {
   endurancePlan,
   endurancePlanDate,
@@ -13,6 +14,8 @@ let _plan = null;
 let _planDate = null;
 let _observer = null;
 let _scheduled = false;
+let _settingsConfig = null;
+let _settingsConfigLoading = false;
 
 function routePath() {
   if (typeof window === 'undefined') return '/';
@@ -27,6 +30,10 @@ function routeIsDiary() {
 
 function routeIsGoals() {
   return routePath() === '/goals';
+}
+
+function routeIsEnduranceSettings() {
+  return routePath() === '/settings/goals';
 }
 
 function setAttr(el, name, value) {
@@ -56,6 +63,10 @@ function clearMealDecorations() {
 function clearGoalsDecorations() {
   document.querySelector('.fuelbase-goals-notice')?.remove();
   document.querySelectorAll('.fuelbase-hidden-legacy').forEach(el => el.classList.remove('fuelbase-hidden-legacy'));
+}
+
+function clearSettingsDecorations() {
+  document.querySelector('.fuelbase-settings-goal-intent')?.remove();
 }
 
 function formatTime(hour) {
@@ -150,17 +161,107 @@ function decorateLegacyGoals(plan) {
   }
 }
 
+function updateSettingsIntentButtons(root, intent) {
+  if (!root) return;
+  root.querySelectorAll('.fuelbase-intent-option').forEach(button => {
+    const active = button.dataset.intent === intent;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-checked', active ? 'true' : 'false');
+  });
+  const summary = root.querySelector('.fuelbase-intent-summary');
+  if (summary) {
+    const adjustment = intent === 'lose' ? '−250 kcal/day' : intent === 'gain' ? '+200 kcal/day' : 'no calorie adjustment';
+    summary.textContent = `${goalLabel(intent)} · ${adjustment}. Pre-, during- and recovery fuel stay protected.`;
+  }
+}
+
+async function saveSettingsIntent(intent, root) {
+  if (!['lose', 'maintain', 'gain'].includes(intent) || !root || root.dataset.saving === 'true') return;
+  root.dataset.saving = 'true';
+  root.querySelectorAll('button').forEach(button => { button.disabled = true; });
+  const previous = _settingsConfig?.goalIntent || 'maintain';
+  updateSettingsIntentButtons(root, intent);
+  try {
+    const config = await IntervalsClient.saveConfig({ goalIntent: intent });
+    _settingsConfig = { ...(_settingsConfig || {}), ...config, goalIntent: config?.goalIntent || intent };
+    updateSettingsIntentButtons(root, _settingsConfig.goalIntent);
+    if (_date) await loadEndurancePlan(_date, { force: true });
+  } catch (error) {
+    updateSettingsIntentButtons(root, previous);
+    const summary = root.querySelector('.fuelbase-intent-summary');
+    if (summary) summary.textContent = `Could not save goal: ${error?.message || 'request failed'}`;
+  } finally {
+    root.dataset.saving = 'false';
+    root.querySelectorAll('button').forEach(button => { button.disabled = false; });
+  }
+}
+
+function decorateEnduranceSettings() {
+  const cards = document.querySelectorAll('.endurance-card');
+  const foundationCard = cards[1];
+  if (!foundationCard) return;
+
+  let root = foundationCard.querySelector('.fuelbase-settings-goal-intent');
+  if (!root) {
+    root = document.createElement('section');
+    root.className = 'fuelbase-settings-goal-intent';
+    root.innerHTML = `
+      <div class="fuelbase-intent-head">
+        <div>
+          <span class="fuelbase-intent-kicker">Goal intent</span>
+          <strong>Choose your energy direction</strong>
+        </div>
+        <span class="fuelbase-intent-protected"><span class="material-symbols-rounded">shield</span> Training fuel protected</span>
+      </div>
+      <div class="fuelbase-intent-options" role="radiogroup" aria-label="Endurance goal intent">
+        <button type="button" class="fuelbase-intent-option" data-intent="lose" role="radio" aria-checked="false"><strong>Lose</strong><span>−250 kcal</span></button>
+        <button type="button" class="fuelbase-intent-option" data-intent="maintain" role="radio" aria-checked="false"><strong>Maintain</strong><span>No adjustment</span></button>
+        <button type="button" class="fuelbase-intent-option" data-intent="gain" role="radio" aria-checked="false"><strong>Gain</strong><span>+200 kcal</span></button>
+      </div>
+      <span class="fuelbase-intent-summary"></span>
+    `;
+    root.querySelectorAll('.fuelbase-intent-option').forEach(button => {
+      button.addEventListener('click', () => saveSettingsIntent(button.dataset.intent, root));
+    });
+    const logicStrip = foundationCard.querySelector('.logic-strip');
+    foundationCard.insertBefore(root, logicStrip || foundationCard.querySelector('.save-targets'));
+  }
+
+  updateSettingsIntentButtons(root, _settingsConfig?.goalIntent || 'maintain');
+}
+
+async function ensureSettingsConfig() {
+  if (_settingsConfigLoading || _settingsConfig) return;
+  _settingsConfigLoading = true;
+  try {
+    _settingsConfig = await IntervalsClient.config();
+  } catch {
+    _settingsConfig = { goalIntent: 'maintain' };
+  } finally {
+    _settingsConfigLoading = false;
+    scheduleSync();
+  }
+}
+
 function syncDom() {
   _scheduled = false;
   if (typeof document === 'undefined') return;
 
   const diaryActive = _mode === 'endurance' && routeIsDiary();
   const goalsActive = _mode === 'endurance' && routeIsGoals();
+  const settingsActive = _mode === 'endurance' && routeIsEnduranceSettings();
   document.documentElement.classList.toggle('fuelbase-endurance-active', diaryActive);
   document.documentElement.classList.toggle('fuelbase-goals-endurance', goalsActive);
+  document.documentElement.classList.toggle('fuelbase-settings-endurance', settingsActive);
 
   if (!diaryActive) clearMealDecorations();
   if (!goalsActive) clearGoalsDecorations();
+  if (!settingsActive) clearSettingsDecorations();
+
+  if (settingsActive) {
+    if (!_settingsConfig) ensureSettingsConfig();
+    decorateEnduranceSettings();
+  }
 
   const needsPlan = diaryActive || goalsActive;
   if (!needsPlan) {
@@ -205,10 +306,13 @@ export function initEnduranceUiBridge() {
     scheduleSync();
   });
 
-  window.addEventListener('hashchange', scheduleSync);
+  window.addEventListener('hashchange', () => {
+    if (!routeIsEnduranceSettings()) _settingsConfig = null;
+    scheduleSync();
+  });
 
   _observer = new MutationObserver(mutations => {
-    if (_mode !== 'endurance' || !(routeIsDiary() || routeIsGoals())) return;
+    if (_mode !== 'endurance' || !(routeIsDiary() || routeIsGoals() || routeIsEnduranceSettings())) return;
     if (!mutations.some(m => m.addedNodes?.length || m.removedNodes?.length)) return;
     scheduleSync();
   });
