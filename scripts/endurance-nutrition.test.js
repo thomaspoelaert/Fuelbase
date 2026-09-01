@@ -43,15 +43,35 @@ test('short easy session does not force during carbs', () => {
   assert.equal(f.duringRate, 0);
 });
 
-test('two hour endurance ride receives practical pre/during/post fueling', () => {
+test('two hour endurance ride defaults to 60 g per hour', () => {
   const f = fuelingForWorkout({ sport: 'Ride', durationMin: 120, intensity: 60 }, 80, 24);
-  assert.equal(f.duringRate, 55);
-  assert.equal(f.duringCarbs, 110);
+  assert.equal(f.duringRate, 60);
+  assert.equal(f.duringCarbs, 120);
+  assert.equal(f.duringRateSource, 'default');
   assert.ok(f.preCarbs >= 55);
   assert.ok(f.postCarbs >= 60);
 });
 
-test('long hard ride drives higher during target', () => {
+test('long endurance ride defaults to 90 g per hour', () => {
+  const f = fuelingForWorkout({ sport: 'Ride', durationMin: 240, intensity: 60 }, 80, 36);
+  assert.equal(f.duringRate, 90);
+  assert.equal(f.duringCarbs, 360);
+});
+
+test('Intervals workout carb target overrides default fueling rate', () => {
+  const f = fuelingForWorkout({ sport: 'Ride', durationMin: 120, intensity: 60, carbsPerHour: 72 }, 80, 24);
+  assert.equal(f.duringRate, 72);
+  assert.equal(f.duringCarbs, 145);
+  assert.equal(f.duringRateSource, 'workout_target');
+});
+
+test('explicit zero carb target is respected', () => {
+  const f = fuelingForWorkout({ sport: 'Ride', durationMin: 90, intensity: 60, carbsPerHour: 0 }, 80, 24);
+  assert.equal(f.duringRate, 0);
+  assert.equal(f.duringRateSource, 'workout_target');
+});
+
+test('long hard ride keeps high during target', () => {
   const f = fuelingForWorkout({ sport: 'Ride', durationMin: 240, intensity: 80 }, 80, 36);
   assert.equal(f.duringRate, 90);
   assert.equal(f.duringCarbs, 360);
@@ -75,6 +95,21 @@ test('training energy raises daily target but keeps normal meal floors', () => {
   assert.ok(plan.mealTargets.every(m => m.minKcal >= 300));
   const dinner = plan.mealTargets.find(m => /dinner/i.test(m.label));
   assert.ok(dinner.centerKcal > 720);
+});
+
+test('evening training puts most added meal energy close to pre and recovery windows', () => {
+  const plan = calculateEnduranceDay({
+    baseCalories: 2400,
+    bodyWeightKg: 80,
+    date: '2026-09-01',
+    workouts: [{ sport: 'Ride', durationMin: 120, calories: 1050, startTime: '2026-09-01T18:00:00' }],
+  });
+  const breakfast = plan.mealTargets.find(m => /breakfast/i.test(m.label));
+  const dinner = plan.mealTargets.find(m => /dinner/i.test(m.label));
+  const snacks = plan.mealTargets.find(m => /snack/i.test(m.label));
+  assert.equal(breakfast.workoutOverlayKcal, 0);
+  assert.ok(dinner.workoutOverlayKcal > 0);
+  assert.ok(snacks.workoutOverlayKcal > 0);
 });
 
 test('during workout carbs stay inside total daily energy', () => {
