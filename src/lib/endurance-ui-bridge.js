@@ -34,11 +34,14 @@ function setAttr(el, name, value) {
 function clearMealDecorations() {
   if (typeof document === 'undefined') return;
   document.querySelectorAll('.meal-group[data-fuelbase-target-label]').forEach(card => {
-    card.removeAttribute('data-fuelbase-target-label');
-    card.removeAttribute('data-fuelbase-workout-overlay');
-    card.removeAttribute('data-fuelbase-timing-label');
-    card.querySelector('.meal-name')?.removeAttribute('data-fuelbase-target-label');
-    card.querySelector('.meal-header')?.removeAttribute('data-fuelbase-timing-label');
+    for (const name of ['data-fuelbase-target-label','data-fuelbase-workout-overlay','data-fuelbase-timing-label','data-fuelbase-guidance-label','data-fuelbase-priority']) {
+      card.removeAttribute(name);
+    }
+    const mealName = card.querySelector('.meal-name');
+    mealName?.removeAttribute('data-fuelbase-target-label');
+    mealName?.removeAttribute('data-fuelbase-guidance-label');
+    const mealHeader = card.querySelector('.meal-header');
+    mealHeader?.removeAttribute('data-fuelbase-timing-label');
   });
 }
 
@@ -61,19 +64,22 @@ function decorateMeals(plan) {
     const min = Math.round(Number(target.minKcal) || 0);
     const max = Math.round(Number(target.maxKcal) || 0);
     const overlay = Math.round(Number(target.workoutOverlayKcal) || 0);
+    const carbs = Math.round(Number(target.guidance?.carbsG) || 0);
+    const protein = Math.round(Number(target.guidance?.proteinG) || 0);
     const baseLabel = `${min.toLocaleString()}–${max.toLocaleString()} kcal`;
     const label = overlay > 20 ? `${baseLabel} · +${overlay.toLocaleString()} training` : baseLabel;
+    const guidanceLabel = `${carbs}g carbs · ${protein}g protein`;
     const timingLabel = target.timingAdjusted && target.suggestedHour != null
       ? `Recovery meal around ${formatTime(target.suggestedHour)}`
       : null;
 
-    // Card attributes are useful selectors; the visible pseudo-elements need
-    // the same attr on the element they are attached to because CSS attr()
-    // never reads through to a parent element.
     setAttr(card, 'data-fuelbase-target-label', label);
+    setAttr(card, 'data-fuelbase-guidance-label', guidanceLabel);
+    setAttr(card, 'data-fuelbase-priority', target.guidance?.priority || 'normal');
     setAttr(card, 'data-fuelbase-workout-overlay', overlay > 20 ? 'true' : 'false');
     setAttr(card, 'data-fuelbase-timing-label', timingLabel);
     setAttr(mealName, 'data-fuelbase-target-label', label);
+    setAttr(mealName, 'data-fuelbase-guidance-label', guidanceLabel);
     setAttr(mealHeader, 'data-fuelbase-timing-label', timingLabel);
   }
 }
