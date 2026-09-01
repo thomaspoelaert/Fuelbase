@@ -257,6 +257,11 @@ test('FuelBase visual QA — desktop and iPhone', async ({ browser }) => {
   await navigate(m, `${BASE_URL}/#/settings/goals`);
   await assertEnduranceSettings(m, 'mobile endurance settings');
   await screenshot(m, '12-endurance-settings-iphone');
+  const mobileIntent = m.locator('.fuelbase-settings-goal-intent');
+  await mobileIntent.scrollIntoViewIfNeeded();
+  await expect(mobileIntent).toBeInViewport();
+  await assertNoHorizontalOverflow(m, 'mobile endurance goal intent');
+  await screenshot(m, '13-endurance-settings-goal-intent-iphone', { fullPage:false });
 
   notes.push(`mobile page errors: ${mobileErrors.length}`);
   if (mobileErrors.length) notes.push(...mobileErrors.map(e => `mobile error: ${e}`));
