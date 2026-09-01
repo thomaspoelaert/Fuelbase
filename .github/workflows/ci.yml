@@ -19,11 +19,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Node 20 to match node:20-alpine in the Dockerfile.
+      # Current Capacitor tooling requires Node >=22. The production Docker
+      # runtime remains independently pinned/validated by its own image build.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install
