@@ -14,11 +14,19 @@ let _planDate = null;
 let _observer = null;
 let _scheduled = false;
 
-function routeIsDiary() {
-  if (typeof window === 'undefined') return false;
+function routePath() {
+  if (typeof window === 'undefined') return '/';
   const hash = window.location.hash || '#/';
-  const path = hash.slice(1).split('?')[0] || '/';
+  return hash.slice(1).split('?')[0] || '/';
+}
+
+function routeIsDiary() {
+  const path = routePath();
   return path === '/' || path === '';
+}
+
+function routeIsGoals() {
+  return routePath() === '/goals';
 }
 
 function setAttr(el, name, value) {
@@ -43,6 +51,11 @@ function clearMealDecorations() {
     const mealHeader = card.querySelector('.meal-header');
     mealHeader?.removeAttribute('data-fuelbase-timing-label');
   });
+}
+
+function clearGoalsDecorations() {
+  document.querySelector('.fuelbase-goals-notice')?.remove();
+  document.querySelectorAll('.fuelbase-hidden-legacy').forEach(el => el.classList.remove('fuelbase-hidden-legacy'));
 }
 
 function formatTime(hour) {
@@ -84,15 +97,73 @@ function decorateMeals(plan) {
   }
 }
 
+function goalLabel(intent) {
+  if (intent === 'lose') return 'Lose';
+  if (intent === 'gain') return 'Gain';
+  return 'Maintain';
+}
+
+function decorateLegacyGoals(plan) {
+  if (!plan) return;
+  const main = document.querySelector('.goals-main');
+  if (!main) return;
+
+  // The legacy Goals page only knows Fixed/Dynamic/Adaptive. In Endurance
+  // mode its third pill would misleadingly look like Adaptive and its preview
+  // would fall back to the old fixed calorie goal. Hide those legacy controls
+  // and surface the live FuelBase plan instead; nutrient/water goals remain.
+  const modeHeading = [...document.querySelectorAll('.goals-rail-heading')]
+    .find(el => /calorie goal mode/i.test(el.textContent || ''));
+  modeHeading?.classList.add('fuelbase-hidden-legacy');
+  modeHeading?.nextElementSibling?.classList.add('fuelbase-hidden-legacy');
+
+  let notice = document.querySelector('.fuelbase-goals-notice');
+  if (!notice) {
+    notice = document.createElement('section');
+    notice.className = 'fuelbase-goals-notice';
+    notice.innerHTML = `
+      <div class="fuelbase-goals-notice-icon"><span class="material-symbols-rounded">directions_bike</span></div>
+      <div class="fuelbase-goals-notice-copy">
+        <span class="fuelbase-goals-kicker">FuelBase Endurance</span>
+        <strong class="fuelbase-goals-title"></strong>
+        <span class="fuelbase-goals-meta"></span>
+      </div>
+      <button type="button" class="fuelbase-goals-settings">Settings <span class="material-symbols-rounded">chevron_right</span></button>
+    `;
+    notice.querySelector('.fuelbase-goals-settings')?.addEventListener('click', () => {
+      window.location.hash = '#/settings/goals';
+    });
+    main.prepend(notice);
+  }
+
+  const target = Math.round(Number(plan.calories?.target) || 0);
+  const carbs = Math.round(Number(plan.macros?.carbohydrates) || 0);
+  const adjustment = Math.round(Number(plan.calories?.goalAdjustment) || 0);
+  const intent = plan.goal?.intent || plan.config?.goalIntent || 'maintain';
+  const training = Math.round(Number(plan.calories?.training) || 0);
+  const title = notice.querySelector('.fuelbase-goals-title');
+  const meta = notice.querySelector('.fuelbase-goals-meta');
+  if (title) title.textContent = `${target.toLocaleString()} kcal today · ${goalLabel(intent)}`;
+  if (meta) {
+    const goalPart = adjustment ? ` · ${adjustment > 0 ? '+' : ''}${adjustment} kcal goal` : '';
+    meta.textContent = `${carbs} g carbs · +${training.toLocaleString()} kcal training${goalPart} · training fuel protected`;
+  }
+}
+
 function syncDom() {
   _scheduled = false;
   if (typeof document === 'undefined') return;
 
-  const active = _mode === 'endurance' && routeIsDiary();
-  document.documentElement.classList.toggle('fuelbase-endurance-active', active);
+  const diaryActive = _mode === 'endurance' && routeIsDiary();
+  const goalsActive = _mode === 'endurance' && routeIsGoals();
+  document.documentElement.classList.toggle('fuelbase-endurance-active', diaryActive);
+  document.documentElement.classList.toggle('fuelbase-goals-endurance', goalsActive);
 
-  if (!active) {
-    clearMealDecorations();
+  if (!diaryActive) clearMealDecorations();
+  if (!goalsActive) clearGoalsDecorations();
+
+  const needsPlan = diaryActive || goalsActive;
+  if (!needsPlan) {
     document.documentElement.style.removeProperty('--fuelbase-endurance-target');
     return;
   }
@@ -102,7 +173,8 @@ function syncDom() {
 
   const target = Math.round(Number(_plan.calories?.target) || 0);
   if (target > 0) document.documentElement.style.setProperty('--fuelbase-endurance-target', String(target));
-  decorateMeals(_plan);
+  if (diaryActive) decorateMeals(_plan);
+  if (goalsActive) decorateLegacyGoals(_plan);
 }
 
 function scheduleSync() {
@@ -121,7 +193,7 @@ export function initEnduranceUiBridge() {
   });
   currentDate.subscribe(value => {
     _date = value;
-    if (_mode === 'endurance' && routeIsDiary() && value) loadEndurancePlan(value);
+    if (_mode === 'endurance' && (routeIsDiary() || routeIsGoals()) && value) loadEndurancePlan(value);
     scheduleSync();
   });
   endurancePlan.subscribe(value => {
@@ -136,7 +208,7 @@ export function initEnduranceUiBridge() {
   window.addEventListener('hashchange', scheduleSync);
 
   _observer = new MutationObserver(mutations => {
-    if (_mode !== 'endurance' || !routeIsDiary()) return;
+    if (_mode !== 'endurance' || !(routeIsDiary() || routeIsGoals())) return;
     if (!mutations.some(m => m.addedNodes?.length || m.removedNodes?.length)) return;
     scheduleSync();
   });
