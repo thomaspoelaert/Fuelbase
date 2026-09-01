@@ -22,6 +22,7 @@ function routeIsDiary() {
 }
 
 function setAttr(el, name, value) {
+  if (!el) return;
   const next = value == null ? null : String(value);
   if (next == null) {
     if (el.hasAttribute(name)) el.removeAttribute(name);
@@ -32,10 +33,12 @@ function setAttr(el, name, value) {
 
 function clearMealDecorations() {
   if (typeof document === 'undefined') return;
-  document.querySelectorAll('.meal-group[data-fuelbase-target-label]').forEach(el => {
-    el.removeAttribute('data-fuelbase-target-label');
-    el.removeAttribute('data-fuelbase-workout-overlay');
-    el.removeAttribute('data-fuelbase-timing-label');
+  document.querySelectorAll('.meal-group[data-fuelbase-target-label]').forEach(card => {
+    card.removeAttribute('data-fuelbase-target-label');
+    card.removeAttribute('data-fuelbase-workout-overlay');
+    card.removeAttribute('data-fuelbase-timing-label');
+    card.querySelector('.meal-name')?.removeAttribute('data-fuelbase-target-label');
+    card.querySelector('.meal-header')?.removeAttribute('data-fuelbase-timing-label');
   });
 }
 
@@ -49,26 +52,29 @@ function formatTime(hour) {
 function decorateMeals(plan) {
   if (typeof document === 'undefined' || !plan?.mealTargets?.length) return;
 
-  for (const target of plan.mealTargets) {
-    const idx = plan.mealTargets.indexOf(target);
+  for (const [idx, target] of plan.mealTargets.entries()) {
     const card = document.getElementById(`meal-${idx}`);
     if (!card) continue;
+    const mealName = card.querySelector('.meal-name');
+    const mealHeader = card.querySelector('.meal-header');
 
     const min = Math.round(Number(target.minKcal) || 0);
     const max = Math.round(Number(target.maxKcal) || 0);
     const overlay = Math.round(Number(target.workoutOverlayKcal) || 0);
     const baseLabel = `${min.toLocaleString()}–${max.toLocaleString()} kcal`;
     const label = overlay > 20 ? `${baseLabel} · +${overlay.toLocaleString()} training` : baseLabel;
+    const timingLabel = target.timingAdjusted && target.suggestedHour != null
+      ? `Recovery meal around ${formatTime(target.suggestedHour)}`
+      : null;
 
+    // Card attributes are useful selectors; the visible pseudo-elements need
+    // the same attr on the element they are attached to because CSS attr()
+    // never reads through to a parent element.
     setAttr(card, 'data-fuelbase-target-label', label);
     setAttr(card, 'data-fuelbase-workout-overlay', overlay > 20 ? 'true' : 'false');
-    setAttr(
-      card,
-      'data-fuelbase-timing-label',
-      target.timingAdjusted && target.suggestedHour != null
-        ? `Recovery meal around ${formatTime(target.suggestedHour)}`
-        : null,
-    );
+    setAttr(card, 'data-fuelbase-timing-label', timingLabel);
+    setAttr(mealName, 'data-fuelbase-target-label', label);
+    setAttr(mealHeader, 'data-fuelbase-timing-label', timingLabel);
   }
 }
 
