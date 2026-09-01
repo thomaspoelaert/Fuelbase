@@ -15,6 +15,8 @@ Use the repository root as the service root and select the `feature/intervals-en
 
 `host:build` deliberately runs the i18n check, all Node tests and the Svelte production build before it prepares `server/dist`. A failed test/build therefore blocks deployment.
 
+Railway's Free plan includes a small monthly usage credit and one 0.5 GB persistent volume. A one-user FuelBase instance may fit within that credit, but this is usage-dependent rather than a guarantee. Check Railway's measured monthly usage after deployment.
+
 ### Persistent data
 
 Attach one persistent volume at `/data` and set:
