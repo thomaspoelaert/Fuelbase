@@ -1,0 +1,73 @@
+name: Visual QA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install Playwright test runner
+        run: npm install --no-save @playwright/test@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and test FuelBase
+        run: npm run host:build
+
+      - name: Start temporary FuelBase server
+        env:
+          NODE_ENV: production
+          PORT: 3001
+          DB_PATH: /tmp/fuelbase-visual-qa.db
+          UPLOADS_PATH: /tmp/fuelbase-visual-qa-uploads
+          JWT_SECRET: visual-qa-jwt-secret-not-for-production-2026
+          TOKEN_ENC_KEY: visual-qa-token-secret-not-for-production-2026
+          FUELBASE_USERNAME: visualqa
+          FUELBASE_PASSWORD: FuelBaseVisualQA-2026!
+          FUELBASE_FULL_NAME: Visual QA
+        run: |
+          rm -f /tmp/fuelbase-visual-qa.db /tmp/fuelbase-visual-qa.db-shm /tmp/fuelbase-visual-qa.db-wal
+          npm run host:start > /tmp/fuelbase-server.log 2>&1 &
+          echo $! > /tmp/fuelbase-server.pid
+          for i in {1..45}; do
+            if curl -fsS http://127.0.0.1:3001/api/health >/dev/null; then
+              echo "FuelBase server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/fuelbase-server.log
+          exit 1
+
+      - name: Capture desktop and iPhone screenshots
+        run: npx playwright test scripts/visual-qa.spec.js --reporter=line --workers=1
+
+      - name: Copy server log
+        if: always()
+        run: |
+          mkdir -p visual-qa
+          cp /tmp/fuelbase-server.log visual-qa/server.log 2>/dev/null || true
+
+      - name: Upload visual QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuelbase-visual-qa
+          path: visual-qa/
+          if-no-files-found: warn
+          retention-days: 14
